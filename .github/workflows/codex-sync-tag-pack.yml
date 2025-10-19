@@ -47,7 +47,7 @@ jobs:
         id: npm_pack
         run: |
           set -euo pipefail
-          PACKAGE_FILE=$(npm pack)
+          PACKAGE_FILE=$(npm pack | tail -n 1 | tr -d '\r')
           echo "package_path=${PACKAGE_FILE}" >> "${GITHUB_OUTPUT}"
           echo "package_name=$(basename "${PACKAGE_FILE}")" >> "${GITHUB_OUTPUT}"
 
