@@ -4,6 +4,7 @@ export interface IconColors { normal?: HexColor; selected?: HexColor; disabled?:
 export interface TitleColors { light?: { normal?: HexColor; selected?: HexColor; disabled?: HexColor }; dark?: { normal?: HexColor; selected?: HexColor; disabled?: HexColor } }
 export interface TabItem { title: string; icon: string; route: string; badge?: string; iconColors?: IconColors; contextMenuItems?: ContextMenuItem[]; titleColors?: TitleColors }
 export interface ShowOptions { tabs: TabItem[]; selectedIndex?: number; layout?: { position?: 'absolute'|'safe-area'; bottomInset?: number; sideInset?: number }; iconColors?: IconColors; titleColors?: TitleColors; contextMenu?: { longPressEnabled?: boolean; defaultItems?: ContextMenuItem[] } }
+export type UserInterfaceStyle = 'light' | 'dark' | 'auto';
 export interface TabBarPlugin {
   show(options: ShowOptions): Promise<void>; hide(): Promise<void>; select(options: { index: number }): Promise<void>; setBadge(options: { index: number; value?: string }): Promise<void>;
   setIconColors(options: IconColors): Promise<void>; setTabIconColors(options: IconColors & { index: number }): Promise<void>;
@@ -12,6 +13,7 @@ export interface TabBarPlugin {
   setLayout(options: { position?: 'absolute'|'safe-area'; bottomInset?: number; sideInset?: number }): Promise<void>;
   setBottomOffset(options: { bottomInset: number; position?: 'absolute'|'safe-area' }): Promise<void>;
   presentContextMenu(options: { index: number }): Promise<void>;
+  setUserInterfaceStyle(options: { style: UserInterfaceStyle }): Promise<void>;
   addListener(eventName: 'tabSelected', listenerFunc: (data: { index: number; route: string }) => void): Promise<{ remove: () => void }>;
   addListener(eventName: 'tabReselected', listenerFunc: (data: { index: number; route: string }) => void): Promise<{ remove: () => void }>;
   addListener(eventName: 'tabLongPress', listenerFunc: (data: { index: number; route: string }) => void): Promise<{ remove: () => void }>;

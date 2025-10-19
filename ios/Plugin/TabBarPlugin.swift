@@ -12,6 +12,7 @@ public class TabBarPlugin: CAPPlugin {
   private var trailingConstraint: NSLayoutConstraint?
   private var bottomConstraint: NSLayoutConstraint?
   private var usesSafeArea = false
+  private var pendingInterfaceStyle: UIUserInterfaceStyle = .unspecified
 
   struct IconColors: Codable { let normal: String?; let selected: String?; let disabled: String? }
   struct TitleSide: Codable { let normal: String?; let selected: String?; let disabled: String? }
@@ -99,6 +100,7 @@ public class TabBarPlugin: CAPPlugin {
         self.usesSafeArea = (position == "safe-area")
 
         let c = self.host ?? NativeTabBarController()
+        c.setInterfaceStyle(self.pendingInterfaceStyle)
         c.onSelect = { [weak self] idx, route, reselection in
           guard let self else { return }
           self.notifyListeners(reselection ? "tabReselected" : "tabSelected", data: ["index": idx, "route": route])
@@ -146,6 +148,24 @@ public class TabBarPlugin: CAPPlugin {
       if let bi = call.getDouble("bottomInset") { self.bottomConstraint?.constant = CGFloat(-bi) }
       if let si = call.getDouble("sideInset") { self.leadingConstraint?.constant = CGFloat(si); self.trailingConstraint?.constant = CGFloat(-si) }
       self.bridge?.viewController?.view.layoutIfNeeded()
+      call.resolve()
+    }
+  }
+
+  @objc public func setUserInterfaceStyle(_ call: CAPPluginCall) {
+    DispatchQueue.main.async {
+      let styleValue = (call.getString("style") ?? "auto").lowercased()
+      let resolved: UIUserInterfaceStyle
+      switch styleValue {
+      case "light":
+        resolved = .light
+      case "dark":
+        resolved = .dark
+      default:
+        resolved = .unspecified
+      }
+      self.pendingInterfaceStyle = resolved
+      self.host?.setInterfaceStyle(resolved)
       call.resolve()
     }
   }

@@ -8,6 +8,7 @@
 - **Контекстное меню** по долгому нажатию (LongPress) на элементы таббара — per‑tab.
 - **Бейджи** на табах.
 - **Runtime‑layout**: можно задать отступ от нижнего края и боковые отступы (позиция абсолютная).
+- Принудительный выбор темы таббара: `light`, `dark` или `auto` (следовать системе).
 - События: `tabSelected`, `tabReselected`, `tabLongPress`, `contextMenuItemSelected`.
 
 > В версии **1.1.4+** полностью удалены API анимации иконок (символьные эффекты).
@@ -307,6 +308,17 @@ await TabBar.presentContextMenu({ index: 0 })
 
 ```ts
 await TabBar.setLayout({ bottomInset: 28, sideInset: 20 })
+```
+
+---
+
+### `setUserInterfaceStyle({ style }: { style: 'light' | 'dark' | 'auto' }): Promise<void>`
+
+Фиксирует тему таббара и контекстных меню независимо от системного оформления. Значение `auto` (по умолчанию) возвращает поведение «следовать системе».
+
+```ts
+await TabBar.setUserInterfaceStyle({ style: 'dark' }) // жёстко тёмная тема
+await TabBar.setUserInterfaceStyle({ style: 'auto' }) // снова следовать настройкам iOS/iPadOS
 ```
 
 ---

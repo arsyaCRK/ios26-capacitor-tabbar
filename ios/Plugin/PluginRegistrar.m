@@ -14,5 +14,6 @@ CAP_PLUGIN(MmsmartCapacitorIos26Tabbar, "MmsmartCapacitorIos26Tabbar",
   CAP_PLUGIN_METHOD(setContextMenuForIndex, CAPPluginReturnPromise);
   CAP_PLUGIN_METHOD(setLayout, CAPPluginReturnPromise);
   CAP_PLUGIN_METHOD(setBottomOffset, CAPPluginReturnPromise);
+  CAP_PLUGIN_METHOD(setUserInterfaceStyle, CAPPluginReturnPromise);
   CAP_PLUGIN_METHOD(presentContextMenu, CAPPluginReturnPromise);
 )

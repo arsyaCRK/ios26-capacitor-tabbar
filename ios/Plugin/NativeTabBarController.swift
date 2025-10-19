@@ -56,6 +56,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
     private var defaultCtx: [ContextItem] = []
     private var perTabCtx: [Int: [ContextItem]] = [:]
     private var longPressEnabled = true
+    private var forcedInterfaceStyle: UIUserInterfaceStyle = .unspecified
 
     private func applyAppearance() {
         let appearance = UITabBarAppearance()
@@ -73,6 +74,8 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .clear
+        overrideUserInterfaceStyle = forcedInterfaceStyle
+        view.overrideUserInterfaceStyle = forcedInterfaceStyle
         tabBar.translatesAutoresizingMaskIntoConstraints = false
         tabBar.delegate = self
         tabBar.itemPositioning = .automatic
@@ -81,6 +84,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
         tabBar.tintColor = UIColor.systemBlue
         tabBar.unselectedItemTintColor = UIColor.secondaryLabel
         tabBar.isUserInteractionEnabled = true
+        tabBar.overrideUserInterfaceStyle = forcedInterfaceStyle
         applyAppearance()
         view.addSubview(tabBar)
 
@@ -158,6 +162,15 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
     func setBadge(index: Int, value: String?) {
         guard index >= 0, index < (tabBar.items?.count ?? 0) else { return }
         tabBar.items?[index].badgeValue = (value?.isEmpty == false) ? value : nil
+    }
+
+    func setInterfaceStyle(_ style: UIUserInterfaceStyle) {
+        forcedInterfaceStyle = style
+        overrideUserInterfaceStyle = style
+        view.overrideUserInterfaceStyle = style
+        tabBar.overrideUserInterfaceStyle = style
+        applyTitleColors()
+        rebuildItems()
     }
 
     @discardableResult
