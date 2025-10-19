@@ -13,6 +13,7 @@ public class TabBarPlugin: CAPPlugin {
   private var bottomConstraint: NSLayoutConstraint?
   private var usesSafeArea = false
   private var pendingInterfaceStyle: UIUserInterfaceStyle = .unspecified
+  private var currentBottomInset: CGFloat = 24
 
   struct IconColors: Codable { let normal: String?; let selected: String?; let disabled: String? }
   struct TitleSide: Codable { let normal: String?; let selected: String?; let disabled: String? }
@@ -37,6 +38,28 @@ public class TabBarPlugin: CAPPlugin {
   }
 
   
+  private func computeBottomConstant(for bridgeVC: UIViewController, respectSafeArea: Bool, inset: CGFloat) -> CGFloat {
+    guard respectSafeArea else { return -inset }
+    guard let containerView = bridgeVC.view else { return -inset }
+    containerView.layoutIfNeeded()
+    var safeInset = containerView.safeAreaInsets.bottom
+    if safeInset == 0, let windowInset = containerView.window?.safeAreaInsets.bottom {
+      safeInset = windowInset
+    }
+    if safeInset == 0 {
+      let scenes = UIApplication.shared.connectedScenes
+        .compactMap { $0 as? UIWindowScene }
+      for scene in scenes {
+        for window in scene.windows where window.isKeyWindow {
+          safeInset = window.safeAreaInsets.bottom
+          if safeInset > 0 { break }
+        }
+        if safeInset > 0 { break }
+      }
+    }
+    return safeInset - inset
+  }
+
   private func replaceBottomConstraint(respectSafeArea: Bool, inset: CGFloat) {
     guard let bridgeVC = self.bridge?.viewController, let hostView = self.host?.view else { return }
     // remove old
@@ -45,8 +68,10 @@ public class TabBarPlugin: CAPPlugin {
       hostView.removeConstraint(bc)
     }
     self.usesSafeArea = respectSafeArea
+    self.currentBottomInset = inset
     if respectSafeArea {
-      self.bottomConstraint = hostView.bottomAnchor.constraint(equalTo: bridgeVC.view.safeAreaLayoutGuide.bottomAnchor, constant: -inset)
+      let constant = computeBottomConstant(for: bridgeVC, respectSafeArea: true, inset: inset)
+      self.bottomConstraint = hostView.bottomAnchor.constraint(equalTo: bridgeVC.view.safeAreaLayoutGuide.bottomAnchor, constant: constant)
     } else {
       self.bottomConstraint = hostView.bottomAnchor.constraint(equalTo: bridgeVC.view.bottomAnchor, constant: -inset)
     }
@@ -69,10 +94,11 @@ public class TabBarPlugin: CAPPlugin {
       self.leadingConstraint = c.view.leadingAnchor.constraint(equalTo: bridgeVC.view.leadingAnchor, constant: sideInset)
       self.trailingConstraint = c.view.trailingAnchor.constraint(equalTo: bridgeVC.view.trailingAnchor, constant: -sideInset)
       if self.usesSafeArea {
-      self.bottomConstraint = c.view.bottomAnchor.constraint(equalTo: bridgeVC.view.safeAreaLayoutGuide.bottomAnchor, constant: -bottomInset)
-    } else {
-      self.bottomConstraint = c.view.bottomAnchor.constraint(equalTo: bridgeVC.view.bottomAnchor, constant: -bottomInset)
-    }
+        let constant = computeBottomConstant(for: bridgeVC, respectSafeArea: true, inset: bottomInset)
+        self.bottomConstraint = c.view.bottomAnchor.constraint(equalTo: bridgeVC.view.safeAreaLayoutGuide.bottomAnchor, constant: constant)
+      } else {
+        self.bottomConstraint = c.view.bottomAnchor.constraint(equalTo: bridgeVC.view.bottomAnchor, constant: -bottomInset)
+      }
       NSLayoutConstraint.activate([ self.leadingConstraint!, self.trailingConstraint!, self.bottomConstraint! ])
 
       bridgeVC.view.bringSubviewToFront(c.view)
@@ -98,6 +124,7 @@ public class TabBarPlugin: CAPPlugin {
         let sideInset = opts.layout?.sideInset ?? 16
         let position = opts.layout?.position ?? "absolute"
         self.usesSafeArea = (position == "safe-area")
+        self.currentBottomInset = bottomInset
 
         let c = self.host ?? NativeTabBarController()
         c.setInterfaceStyle(self.pendingInterfaceStyle)
@@ -145,8 +172,27 @@ public class TabBarPlugin: CAPPlugin {
 
   @objc public func setLayout(_ call: CAPPluginCall) {
     DispatchQueue.main.async {
-      if let bi = call.getDouble("bottomInset") { self.bottomConstraint?.constant = CGFloat(-bi) }
-      if let si = call.getDouble("sideInset") { self.leadingConstraint?.constant = CGFloat(si); self.trailingConstraint?.constant = CGFloat(-si) }
+      let previousUsesSafeArea = self.usesSafeArea
+      if let pos = call.getString("position") {
+        self.usesSafeArea = (pos == "safe-area")
+      }
+      if let bi = call.getDouble("bottomInset") {
+        self.currentBottomInset = CGFloat(bi)
+      }
+      if self.usesSafeArea != previousUsesSafeArea {
+        self.replaceBottomConstraint(respectSafeArea: self.usesSafeArea, inset: self.currentBottomInset)
+      } else if call.getDouble("bottomInset") != nil {
+        if self.usesSafeArea, let bridgeVC = self.bridge?.viewController {
+          let constant = self.computeBottomConstant(for: bridgeVC, respectSafeArea: true, inset: self.currentBottomInset)
+          self.bottomConstraint?.constant = constant
+        } else {
+          self.bottomConstraint?.constant = -self.currentBottomInset
+        }
+      }
+      if let si = call.getDouble("sideInset") {
+        self.leadingConstraint?.constant = CGFloat(si)
+        self.trailingConstraint?.constant = CGFloat(-si)
+      }
       self.bridge?.viewController?.view.layoutIfNeeded()
       call.resolve()
     }

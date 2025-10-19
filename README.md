@@ -306,6 +306,8 @@ await TabBar.presentContextMenu({ index: 0 })
 
 Обновляет отступы во время работы приложения (позиция абсолютная, WebView не сдвигается).
 
+- Для `position: 'safe-area'` значение `bottomInset` интерпретируется как расстояние от нижнего края экрана; необходимый запас для home-индексатора вычитается автоматически.
+
 ```ts
 await TabBar.setLayout({ bottomInset: 28, sideInset: 20 })
 ```
@@ -416,6 +418,8 @@ MIT
 - `position: 'safe-area'` — якорь к `safeAreaLayoutGuide.bottomAnchor` (учитывает «домик» и системные панели).
 
 Если `position` не указан, используется текущий режим (настроенный через `show({ layout.position })` или предыдущий вызов `setBottomOffset`).
+
+- При `position: 'safe-area'` указанный `bottomInset` трактуется как отступ от **реального края экрана**; требуемый запас под home-indicator вычитается автоматически.
 
 ```ts
 // Прижать к safe area на 12pt
