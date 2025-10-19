@@ -91,8 +91,6 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
         tabBar.itemPositioning = .automatic
         tabBar.itemSpacing = 8
         tabBar.itemWidth = 0
-        tabBar.tintColor = UIColor.systemBlue
-        tabBar.unselectedItemTintColor = UIColor.secondaryLabel
         tabBar.isUserInteractionEnabled = true
         applyAppearance()
         view.addSubview(tabBar)
@@ -100,7 +98,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
         NSLayoutConstraint.activate([
             tabBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tabBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            tabBar.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+            tabBar.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
 
         let ctx = UIContextMenuInteraction(delegate: self)
@@ -149,23 +147,55 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
 
     private func applyTitleColors() {
         guard let items = tabBar.items else { return }
-        let effectiveStyle: UIUserInterfaceStyle
-        if forcedInterfaceStyle == .unspecified {
-            effectiveStyle = traitCollection.userInterfaceStyle
-        } else {
-            effectiveStyle = forcedInterfaceStyle
-        }
+        let effectiveStyle: UIUserInterfaceStyle = forcedInterfaceStyle == .unspecified ? traitCollection.userInterfaceStyle : forcedInterfaceStyle
         let isDark = (effectiveStyle == .dark)
+
+        func colorString(for palette: TitlePalette, state: UIControl.State) -> String? {
+            if isDark {
+                if state.contains(.disabled) { return palette.darkDisabled }
+                if state.contains(.selected) { return palette.darkSelected }
+                return palette.darkNormal
+            } else {
+                if state.contains(.disabled) { return palette.lightDisabled }
+                if state.contains(.selected) { return palette.lightSelected }
+                return palette.lightNormal
+            }
+        }
+
+        func attributes(for palette: TitlePalette, state: UIControl.State) -> [NSAttributedString.Key: Any] {
+            var attrs: [NSAttributedString.Key: Any] = [:]
+            if let color = HexUtil.color(colorString(for: palette, state: state)) {
+                attrs[.foregroundColor] = color
+            }
+            return attrs
+        }
+
+        let globalNormalAttr = attributes(for: globalTitles, state: .normal)
+        let globalSelectedAttr = attributes(for: globalTitles, state: .selected)
+        let globalDisabledAttr = attributes(for: globalTitles, state: .disabled)
+        let appearance = tabBar.standardAppearance
+        appearance.stackedLayoutAppearance.normal.titleTextAttributes = globalNormalAttr
+        appearance.stackedLayoutAppearance.selected.titleTextAttributes = globalSelectedAttr
+        appearance.stackedLayoutAppearance.disabled.titleTextAttributes = globalDisabledAttr
+        appearance.inlineLayoutAppearance.normal.titleTextAttributes = globalNormalAttr
+        appearance.inlineLayoutAppearance.selected.titleTextAttributes = globalSelectedAttr
+        appearance.inlineLayoutAppearance.disabled.titleTextAttributes = globalDisabledAttr
+        appearance.compactInlineLayoutAppearance.normal.titleTextAttributes = globalNormalAttr
+        appearance.compactInlineLayoutAppearance.selected.titleTextAttributes = globalSelectedAttr
+        appearance.compactInlineLayoutAppearance.disabled.titleTextAttributes = globalDisabledAttr
+        tabBar.standardAppearance = appearance
+        if #available(iOS 15.0, *) {
+            tabBar.scrollEdgeAppearance = appearance
+        }
+
         for (i, it) in items.enumerated() {
             let palette = perTabTitles[i] ?? globalTitles
-            let n = HexUtil.color(isDark ? palette.darkNormal : palette.lightNormal)
-            let s = HexUtil.color(isDark ? palette.darkSelected : palette.lightSelected)
-            var normalAttr: [NSAttributedString.Key: Any] = [:]
-            var selectedAttr: [NSAttributedString.Key: Any] = [:]
-            if let n = n { normalAttr[.foregroundColor] = n }
-            if let s = s { selectedAttr[.foregroundColor] = s }
+            let normalAttr = attributes(for: palette, state: .normal)
+            let selectedAttr = attributes(for: palette, state: .selected)
+            let disabledAttr = attributes(for: palette, state: .disabled)
             it.setTitleTextAttributes(normalAttr, for: .normal)
             it.setTitleTextAttributes(selectedAttr, for: .selected)
+            it.setTitleTextAttributes(disabledAttr, for: .disabled)
         }
     }
 
