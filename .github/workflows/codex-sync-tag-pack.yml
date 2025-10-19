@@ -44,7 +44,33 @@ jobs:
         run: npm install
 
       - name: Build npm package
-        run: npm pack
+        id: npm_pack
+        run: |
+          set -euo pipefail
+          PACKAGE_FILE=$(npm pack)
+          echo "package_path=${PACKAGE_FILE}" >> "${GITHUB_OUTPUT}"
+          echo "package_name=$(basename "${PACKAGE_FILE}")" >> "${GITHUB_OUTPUT}"
+
+      - name: Create GitHub release
+        id: create_release
+        uses: actions/create-release@v1
+        with:
+          tag_name: ${{ env.TAG_NAME }}
+          release_name: Release ${{ env.TAG_NAME }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload package to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ${{ steps.npm_pack.outputs.package_path }}
+          asset_name: ${{ steps.npm_pack.outputs.package_name }}
+          asset_content_type: application/gzip
 
       - name: Upload package artifact
         uses: actions/upload-artifact@v4
