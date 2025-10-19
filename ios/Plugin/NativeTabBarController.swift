@@ -57,6 +57,17 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
     private var perTabCtx: [Int: [ContextItem]] = [:]
     private var longPressEnabled = true
     private var forcedInterfaceStyle: UIUserInterfaceStyle = .unspecified
+    private weak var trackedWindow: UIWindow?
+
+    private func applyInterfaceStyle() {
+        overrideUserInterfaceStyle = forcedInterfaceStyle
+        view.overrideUserInterfaceStyle = forcedInterfaceStyle
+        tabBar.overrideUserInterfaceStyle = forcedInterfaceStyle
+        if let window = view.window ?? trackedWindow {
+            window.overrideUserInterfaceStyle = forcedInterfaceStyle
+            trackedWindow = window
+        }
+    }
 
     private func applyAppearance() {
         let appearance = UITabBarAppearance()
@@ -74,8 +85,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .clear
-        overrideUserInterfaceStyle = forcedInterfaceStyle
-        view.overrideUserInterfaceStyle = forcedInterfaceStyle
+        applyInterfaceStyle()
         tabBar.translatesAutoresizingMaskIntoConstraints = false
         tabBar.delegate = self
         tabBar.itemPositioning = .automatic
@@ -84,7 +94,6 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
         tabBar.tintColor = UIColor.systemBlue
         tabBar.unselectedItemTintColor = UIColor.secondaryLabel
         tabBar.isUserInteractionEnabled = true
-        tabBar.overrideUserInterfaceStyle = forcedInterfaceStyle
         applyAppearance()
         view.addSubview(tabBar)
 
@@ -96,6 +105,11 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
 
         let ctx = UIContextMenuInteraction(delegate: self)
         tabBar.addInteraction(ctx)
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        applyInterfaceStyle()
     }
 
     override func traitCollectionDidChange(_ previous: UITraitCollection?) {
@@ -135,7 +149,13 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
 
     private func applyTitleColors() {
         guard let items = tabBar.items else { return }
-        let isDark = traitCollection.userInterfaceStyle == .dark
+        let effectiveStyle: UIUserInterfaceStyle
+        if forcedInterfaceStyle == .unspecified {
+            effectiveStyle = traitCollection.userInterfaceStyle
+        } else {
+            effectiveStyle = forcedInterfaceStyle
+        }
+        let isDark = (effectiveStyle == .dark)
         for (i, it) in items.enumerated() {
             let palette = perTabTitles[i] ?? globalTitles
             let n = HexUtil.color(isDark ? palette.darkNormal : palette.lightNormal)
@@ -166,9 +186,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
 
     func setInterfaceStyle(_ style: UIUserInterfaceStyle) {
         forcedInterfaceStyle = style
-        overrideUserInterfaceStyle = style
-        view.overrideUserInterfaceStyle = style
-        tabBar.overrideUserInterfaceStyle = style
+        applyInterfaceStyle()
         applyTitleColors()
         rebuildItems()
     }
