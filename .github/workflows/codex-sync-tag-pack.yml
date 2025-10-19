@@ -1,0 +1,53 @@
+name: Codex Sync Tag & Pack
+
+on:
+  push:
+    branches:
+      - codex-sync
+
+permissions:
+  contents: write
+
+jobs:
+  tag-and-pack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Configure git
+        run: |
+          git config user.name "${GITHUB_ACTOR}"
+          git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+
+      - name: Create release tag
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./package.json').version")
+          BASE_TAG="v${VERSION}"
+          TAG_NAME="${BASE_TAG}"
+          if git rev-parse -q --verify "refs/tags/${TAG_NAME}" >/dev/null; then
+            TAG_NAME="${BASE_TAG}-${GITHUB_RUN_NUMBER}"
+          fi
+          git tag -a "${TAG_NAME}" -m "Automated release for ${TAG_NAME}"
+          git push origin "${TAG_NAME}"
+          echo "TAG_NAME=${TAG_NAME}" >> "${GITHUB_ENV}"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build npm package
+        run: npm pack
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-package-${{ env.TAG_NAME }}
+          path: "*.tgz"
