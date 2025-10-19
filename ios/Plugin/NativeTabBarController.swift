@@ -124,7 +124,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
             return it
         }
         tabBar.items = tbarItems
-        if selectedIndex >= 0 and selectedIndex < tbarItems.count {
+        if selectedIndex >= 0 && selectedIndex < tbarItems.count {
             tabBar.selectedItem = tbarItems[selectedIndex]
         }
     }
