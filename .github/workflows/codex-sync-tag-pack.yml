@@ -51,26 +51,20 @@ jobs:
           echo "package_path=${PACKAGE_FILE}" >> "${GITHUB_OUTPUT}"
           echo "package_name=$(basename "${PACKAGE_FILE}")" >> "${GITHUB_OUTPUT}"
 
-      - name: Create GitHub release
-        id: create_release
-        uses: actions/create-release@v1
-        with:
-          tag_name: ${{ env.TAG_NAME }}
-          release_name: Release ${{ env.TAG_NAME }}
-          draft: false
-          prerelease: false
+      - name: Create GitHub release and upload package
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload package to release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ steps.npm_pack.outputs.package_path }}
-          asset_name: ${{ steps.npm_pack.outputs.package_name }}
-          asset_content_type: application/gzip
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ env.TAG_NAME }}
+          PACKAGE_PATH: ${{ steps.npm_pack.outputs.package_path }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          set -euo pipefail
+          NOTES_FILE=$(mktemp)
+          printf '%s\n' "${COMMIT_MESSAGE}" > "${NOTES_FILE}"
+          gh release create "${TAG_NAME}" "${PACKAGE_PATH}" \
+            --title "Release ${TAG_NAME}" \
+            --notes-file "${NOTES_FILE}"
 
       - name: Upload package artifact
         uses: actions/upload-artifact@v4
