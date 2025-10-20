@@ -319,8 +319,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate {
         view.addSubview(button)
         NSLayoutConstraint.activate([
             button.centerYAnchor.constraint(equalTo: tabBar.centerYAnchor),
-            button.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            button.leadingAnchor.constraint(greaterThanOrEqualTo: tabBar.trailingAnchor, constant: 8)
+            button.trailingAnchor.constraint(equalTo: tabBar.trailingAnchor, constant: -12)
         ])
         self.actionButton = button
         updateActionButtonMenu()
