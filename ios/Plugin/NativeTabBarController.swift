@@ -58,6 +58,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
     private var longPressEnabled = true
     private var forcedInterfaceStyle: UIUserInterfaceStyle = .unspecified
     private weak var trackedWindow: UIWindow?
+    private var lastMenuIndex: Int?
 
     private func indexForLocation(_ location: CGPoint) -> Int? {
         guard let items = tabBar.items, !items.isEmpty else { return nil }
@@ -258,13 +259,14 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
     func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
         guard longPressEnabled, let items = tabBar.items, items.count > 0 else { return nil }
         guard let idx = indexForLocation(location) else { return nil }
+        lastMenuIndex = idx
 
         onLongPress?(idx, self.items[idx].route)
 
         let menuItems = perTabCtx[idx] ?? defaultCtx
         guard !menuItems.isEmpty else { return nil }
 
-        return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
+        return UIContextMenuConfiguration(identifier: NSNumber(value: idx), previewProvider: nil) { [weak self] _ in
             guard let self = self else { return nil }
             let actions = menuItems.map { mi -> UIAction in
                 let img = mi.sfSymbol.flatMap { UIImage(systemName: $0) }
@@ -280,6 +282,31 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
             }
             return UIMenu(title: "", children: actions)
         }
+    }
+
+    private func previewForIndex(_ index: Int?) -> UITargetedPreview? {
+        guard let idx = index,
+              let item = tabBar.items?[idx],
+              let view = item.value(forKey: "view") as? UIView else { return nil }
+        view.layoutIfNeeded()
+        let params = UIPreviewParameters()
+        params.backgroundColor = .clear
+        params.visiblePath = UIBezierPath(rect: view.bounds)
+        return UITargetedPreview(view: view, parameters: params)
+    }
+
+    func contextMenuInteraction(_ interaction: UIContextMenuInteraction, previewForHighlightingMenuWith configuration: UIContextMenuConfiguration) -> UITargetedPreview? {
+        if let number = configuration.identifier as? NSNumber {
+            return previewForIndex(number.intValue)
+        }
+        return previewForIndex(lastMenuIndex)
+    }
+
+    func contextMenuInteraction(_ interaction: UIContextMenuInteraction, previewForDismissingMenuWith configuration: UIContextMenuConfiguration) -> UITargetedPreview? {
+        if let number = configuration.identifier as? NSNumber {
+            return previewForIndex(number.intValue)
+        }
+        return previewForIndex(lastMenuIndex)
     }
 
     func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {
