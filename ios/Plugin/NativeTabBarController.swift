@@ -57,8 +57,9 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
     private var perTabCtx: [Int: [ContextItem]] = [:]
     private var longPressEnabled = true
     private var forcedInterfaceStyle: UIUserInterfaceStyle = .unspecified
-    private weak var trackedWindow: UIWindow?
     private var lastMenuIndex: Int?
+    private var standardAppearance = UITabBarAppearance()
+    private var scrollAppearance: UITabBarAppearance?
 
     private func indexForLocation(_ location: CGPoint) -> Int? {
         guard let items = tabBar.items, !items.isEmpty else { return nil }
@@ -87,22 +88,16 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
         overrideUserInterfaceStyle = forcedInterfaceStyle
         view.overrideUserInterfaceStyle = forcedInterfaceStyle
         tabBar.overrideUserInterfaceStyle = forcedInterfaceStyle
-        if let window = view.window ?? trackedWindow {
-            window.overrideUserInterfaceStyle = forcedInterfaceStyle
-            trackedWindow = window
-        }
     }
 
     private func applyAppearance() {
-        let appearance = UITabBarAppearance()
-        appearance.configureWithTransparentBackground()
-        appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
-        appearance.backgroundColor = UIColor.clear
-        appearance.shadowImage = UIImage()
-        appearance.shadowColor = .clear
-        tabBar.standardAppearance = appearance
+        standardAppearance = UITabBarAppearance()
+        standardAppearance.configureWithDefaultBackground()
+        standardAppearance.shadowColor = .clear
+        tabBar.standardAppearance = standardAppearance
         if #available(iOS 15.0, *) {
-            tabBar.scrollEdgeAppearance = appearance
+            scrollAppearance = standardAppearance.copy() as? UITabBarAppearance
+            tabBar.scrollEdgeAppearance = scrollAppearance
         }
     }
 
@@ -197,20 +192,28 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
         let globalNormalAttr = attributes(for: globalTitles, state: .normal)
         let globalSelectedAttr = attributes(for: globalTitles, state: .selected)
         let globalDisabledAttr = attributes(for: globalTitles, state: .disabled)
-        let appearance = tabBar.standardAppearance
-        appearance.stackedLayoutAppearance.normal.titleTextAttributes = globalNormalAttr
-        appearance.stackedLayoutAppearance.selected.titleTextAttributes = globalSelectedAttr
-        appearance.stackedLayoutAppearance.disabled.titleTextAttributes = globalDisabledAttr
-        appearance.inlineLayoutAppearance.normal.titleTextAttributes = globalNormalAttr
-        appearance.inlineLayoutAppearance.selected.titleTextAttributes = globalSelectedAttr
-        appearance.inlineLayoutAppearance.disabled.titleTextAttributes = globalDisabledAttr
-        appearance.compactInlineLayoutAppearance.normal.titleTextAttributes = globalNormalAttr
-        appearance.compactInlineLayoutAppearance.selected.titleTextAttributes = globalSelectedAttr
-        appearance.compactInlineLayoutAppearance.disabled.titleTextAttributes = globalDisabledAttr
-        tabBar.standardAppearance = appearance
-        if #available(iOS 15.0, *) {
-            tabBar.scrollEdgeAppearance = appearance
+        standardAppearance.stackedLayoutAppearance.normal.titleTextAttributes = globalNormalAttr
+        standardAppearance.stackedLayoutAppearance.selected.titleTextAttributes = globalSelectedAttr
+        standardAppearance.stackedLayoutAppearance.disabled.titleTextAttributes = globalDisabledAttr
+        standardAppearance.inlineLayoutAppearance.normal.titleTextAttributes = globalNormalAttr
+        standardAppearance.inlineLayoutAppearance.selected.titleTextAttributes = globalSelectedAttr
+        standardAppearance.inlineLayoutAppearance.disabled.titleTextAttributes = globalDisabledAttr
+        standardAppearance.compactInlineLayoutAppearance.normal.titleTextAttributes = globalNormalAttr
+        standardAppearance.compactInlineLayoutAppearance.selected.titleTextAttributes = globalSelectedAttr
+        standardAppearance.compactInlineLayoutAppearance.disabled.titleTextAttributes = globalDisabledAttr
+        if #available(iOS 15.0, *), let scrollAppearance {
+            scrollAppearance.stackedLayoutAppearance.normal.titleTextAttributes = globalNormalAttr
+            scrollAppearance.stackedLayoutAppearance.selected.titleTextAttributes = globalSelectedAttr
+            scrollAppearance.stackedLayoutAppearance.disabled.titleTextAttributes = globalDisabledAttr
+            scrollAppearance.inlineLayoutAppearance.normal.titleTextAttributes = globalNormalAttr
+            scrollAppearance.inlineLayoutAppearance.selected.titleTextAttributes = globalSelectedAttr
+            scrollAppearance.inlineLayoutAppearance.disabled.titleTextAttributes = globalDisabledAttr
+            scrollAppearance.compactInlineLayoutAppearance.normal.titleTextAttributes = globalNormalAttr
+            scrollAppearance.compactInlineLayoutAppearance.selected.titleTextAttributes = globalSelectedAttr
+            scrollAppearance.compactInlineLayoutAppearance.disabled.titleTextAttributes = globalDisabledAttr
+            tabBar.scrollEdgeAppearance = scrollAppearance
         }
+        tabBar.standardAppearance = standardAppearance
 
         for (i, it) in items.enumerated() {
             let palette = perTabTitles[i] ?? globalTitles
@@ -288,6 +291,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
         guard let item = tabBar.items?[index],
               let button = item.value(forKey: "view") as? UIView else { return nil }
         if let imageView = button.value(forKey: "imageView") as? UIView {
+            imageView.backgroundColor = .clear
             return imageView
         }
         return button
@@ -298,8 +302,6 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
               let view = previewHostView(for: idx) else { return nil }
         view.layoutIfNeeded()
         let params = UIPreviewParameters()
-        params.backgroundColor = .clear
-        params.shadowPath = UIBezierPath(rect: .zero)
         let radius = view.layer.cornerRadius
         if radius > 0 {
             params.visiblePath = UIBezierPath(roundedRect: view.bounds, cornerRadius: radius)
@@ -307,7 +309,6 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
             params.visiblePath = UIBezierPath(rect: view.bounds)
         }
         if let snapshot = view.snapshotView(afterScreenUpdates: false) {
-            snapshot.backgroundColor = .clear
             snapshot.layer.cornerRadius = radius
             snapshot.layer.masksToBounds = true
             return UITargetedPreview(view: snapshot, parameters: params)
