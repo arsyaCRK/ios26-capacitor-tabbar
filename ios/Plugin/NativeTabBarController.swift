@@ -147,7 +147,6 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
         super.viewDidLoad()
         view.backgroundColor = .clear
         applyInterfaceStyle()
-        refreshButtonContextInteractions()
         tabBar.translatesAutoresizingMaskIntoConstraints = false
         tabBar.delegate = self
         tabBar.itemPositioning = .automatic
@@ -167,7 +166,6 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         applyInterfaceStyle()
-        refreshButtonContextInteractions()
     }
 
     override func viewDidLayoutSubviews() {
@@ -178,7 +176,6 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
     override func traitCollectionDidChange(_ previous: UITraitCollection?) {
         super.traitCollectionDidChange(previous)
         applyTitleColors()
-        refreshButtonContextInteractions()
     }
 
     func configure(tabs: [TabItem], selected: Int) {
@@ -192,7 +189,6 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
         }
         rebuildItems()
         applyTitleColors()
-        refreshButtonContextInteractions()
     }
 
     private func rebuildItems() {
@@ -209,6 +205,9 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
         tabBar.items = tbarItems
         if selectedIndex >= 0 && selectedIndex < tbarItems.count {
             tabBar.selectedItem = tbarItems[selectedIndex]
+        }
+        DispatchQueue.main.async { [weak self] in
+            self?.refreshButtonContextInteractions()
         }
     }
 
