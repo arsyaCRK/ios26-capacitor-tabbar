@@ -207,16 +207,9 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
         appearance.compactInlineLayoutAppearance.normal.titleTextAttributes = globalNormalAttr
         appearance.compactInlineLayoutAppearance.selected.titleTextAttributes = globalSelectedAttr
         appearance.compactInlineLayoutAppearance.disabled.titleTextAttributes = globalDisabledAttr
+        tabBar.standardAppearance = appearance
         if #available(iOS 15.0, *) {
-            tabBar.scrollEdgeAppearance?.stackedLayoutAppearance.normal.titleTextAttributes = globalNormalAttr
-            tabBar.scrollEdgeAppearance?.stackedLayoutAppearance.selected.titleTextAttributes = globalSelectedAttr
-            tabBar.scrollEdgeAppearance?.stackedLayoutAppearance.disabled.titleTextAttributes = globalDisabledAttr
-            tabBar.scrollEdgeAppearance?.inlineLayoutAppearance.normal.titleTextAttributes = globalNormalAttr
-            tabBar.scrollEdgeAppearance?.inlineLayoutAppearance.selected.titleTextAttributes = globalSelectedAttr
-            tabBar.scrollEdgeAppearance?.inlineLayoutAppearance.disabled.titleTextAttributes = globalDisabledAttr
-            tabBar.scrollEdgeAppearance?.compactInlineLayoutAppearance.normal.titleTextAttributes = globalNormalAttr
-            tabBar.scrollEdgeAppearance?.compactInlineLayoutAppearance.selected.titleTextAttributes = globalSelectedAttr
-            tabBar.scrollEdgeAppearance?.compactInlineLayoutAppearance.disabled.titleTextAttributes = globalDisabledAttr
+            tabBar.scrollEdgeAppearance = appearance
         }
 
         for (i, it) in items.enumerated() {
@@ -291,19 +284,34 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
         }
     }
 
-    private func hostImageView(for index: Int) -> UIView? {
+    private func previewHostView(for index: Int) -> UIView? {
         guard let item = tabBar.items?[index],
-              let button = item.value(forKey: "view") as? UIView,
-              let imageView = button.value(forKey: "imageView") as? UIView else { return nil }
-        return imageView
+              let button = item.value(forKey: "view") as? UIView else { return nil }
+        if let imageView = button.value(forKey: "imageView") as? UIView {
+            return imageView
+        }
+        return button
     }
 
     private func previewForIndex(_ index: Int?) -> UITargetedPreview? {
         guard let idx = index,
-              let view = hostImageView(for: idx) else { return nil }
+              let view = previewHostView(for: idx) else { return nil }
         view.layoutIfNeeded()
         let params = UIPreviewParameters()
-        params.visiblePath = UIBezierPath(rect: view.bounds)
+        params.backgroundColor = .clear
+        params.shadowPath = UIBezierPath(rect: .zero)
+        let radius = view.layer.cornerRadius
+        if radius > 0 {
+            params.visiblePath = UIBezierPath(roundedRect: view.bounds, cornerRadius: radius)
+        } else {
+            params.visiblePath = UIBezierPath(rect: view.bounds)
+        }
+        if let snapshot = view.snapshotView(afterScreenUpdates: false) {
+            snapshot.backgroundColor = .clear
+            snapshot.layer.cornerRadius = radius
+            snapshot.layer.masksToBounds = true
+            return UITargetedPreview(view: snapshot, parameters: params)
+        }
         return UITargetedPreview(view: view, parameters: params)
     }
 
@@ -319,19 +327,6 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
             return previewForIndex(number.intValue)
         }
         return previewForIndex(lastMenuIndex)
-    }
-
-    func contextMenuInteraction(_ interaction: UIContextMenuInteraction, willDisplayMenuFor configuration: UIContextMenuConfiguration, animator: UIContextMenuInteractionAnimating?) {
-        animator?.addAnimations {
-            self.tabBar.backgroundImage = UIImage()
-            self.tabBar.shadowImage = UIImage()
-        }
-    }
-
-    func contextMenuInteraction(_ interaction: UIContextMenuInteraction, willEndFor configuration: UIContextMenuConfiguration, animator: UIContextMenuInteractionAnimating?) {
-        animator?.addAnimations {
-            self.applyAppearance()
-        }
     }
 
     func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {
