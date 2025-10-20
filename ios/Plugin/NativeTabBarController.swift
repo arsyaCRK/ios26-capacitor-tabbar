@@ -59,6 +59,29 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
     private var forcedInterfaceStyle: UIUserInterfaceStyle = .unspecified
     private weak var trackedWindow: UIWindow?
 
+    private func indexForLocation(_ location: CGPoint) -> Int? {
+        guard let items = tabBar.items, !items.isEmpty else { return nil }
+        tabBar.layoutIfNeeded()
+        for (idx, item) in items.enumerated() {
+            if let view = item.value(forKey: "view") as? UIView {
+                if view.frame.contains(location) {
+                    return idx
+                }
+            }
+        }
+        let nearest = items.enumerated().compactMap { (idx, item) -> (Int, CGFloat)? in
+            guard let view = item.value(forKey: "view") as? UIView else { return nil }
+            let distance = abs(view.center.x - location.x)
+            return (idx, distance)
+        }.min(by: { $0.1 < $1.1 })?.0
+        if let nearest = nearest {
+            return nearest
+        }
+        let width = max(tabBar.bounds.width, 1)
+        let raw = Int((location.x / width) * CGFloat(items.count))
+        return max(0, min(items.count - 1, raw))
+    }
+
     private func applyInterfaceStyle() {
         overrideUserInterfaceStyle = forcedInterfaceStyle
         view.overrideUserInterfaceStyle = forcedInterfaceStyle
@@ -234,9 +257,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
     // MARK: - UIContextMenuInteractionDelegate
     func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
         guard longPressEnabled, let items = tabBar.items, items.count > 0 else { return nil }
-        let width = tabBar.bounds.width / CGFloat(items.count)
-        var idx = Int(location.x / width)
-        idx = max(0, min(idx, items.count - 1))
+        guard let idx = indexForLocation(location) else { return nil }
 
         onLongPress?(idx, self.items[idx].route)
 
