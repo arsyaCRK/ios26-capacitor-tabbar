@@ -253,34 +253,6 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate {
         return true
     }
 
-    // MARK: - UIContextMenuInteractionDelegate
-    func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
-        guard longPressEnabled, let items = tabBar.items, items.count > 0 else { return nil }
-        guard let idx = indexForInteraction(interaction, location: location) else { return nil }
-
-        onLongPress?(idx, self.items[idx].route)
-
-        let menuItems = perTabCtx[idx] ?? defaultCtx
-        guard !menuItems.isEmpty else { return nil }
-
-        return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
-            guard let self = self else { return nil }
-            let actions = menuItems.map { mi -> UIAction in
-                let img = mi.sfSymbol.flatMap { UIImage(systemName: $0) }
-                if #available(iOS 17.0, *) {
-                    return UIAction(title: mi.title, subtitle: mi.subtitle, image: img) { _ in
-                        self.onContextItem?(idx, mi.id)
-                    }
-                } else {
-                    return UIAction(title: mi.title, image: img) { _ in
-                        self.onContextItem?(idx, mi.id)
-                    }
-                }
-            }
-            return UIMenu(title: "", children: actions)
-        }
-    }
-
     func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {
         let idx = item.tag
         let route = items[idx].route
