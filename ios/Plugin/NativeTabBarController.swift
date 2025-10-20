@@ -291,7 +291,17 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
         view.layoutIfNeeded()
         let params = UIPreviewParameters()
         params.backgroundColor = .clear
-        params.visiblePath = UIBezierPath(rect: view.bounds)
+        let cornerRadius = view.layer.cornerRadius
+        if cornerRadius > 0 {
+            params.visiblePath = UIBezierPath(roundedRect: view.bounds, cornerRadius: cornerRadius)
+        } else {
+            params.visiblePath = UIBezierPath(rect: view.bounds)
+        }
+        if let snapshot = view.snapshotView(afterScreenUpdates: false) {
+            snapshot.layer.cornerRadius = cornerRadius
+            snapshot.layer.masksToBounds = true
+            return UITargetedPreview(view: snapshot, parameters: params)
+        }
         return UITargetedPreview(view: view, parameters: params)
     }
 
