@@ -58,6 +58,8 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
     private var longPressEnabled = true
     private var forcedInterfaceStyle: UIUserInterfaceStyle = .unspecified
     private weak var trackedWindow: UIWindow?
+    private var buttonInteractions: [UIContextMenuInteraction] = []
+    private var trackedButtonIdentifiers: [ObjectIdentifier] = []
 
     private func tabButtonViews() -> [UIView] {
         let buttonClass = NSClassFromString("UITabBarButton")
@@ -66,6 +68,22 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
             return view
         }
         return buttons.sorted(by: { $0.frame.minX < $1.frame.minX })
+    }
+
+    private func refreshButtonContextInteractions() {
+        let buttons = tabButtonViews()
+        let identifiers = buttons.map { ObjectIdentifier($0) }
+        guard identifiers != trackedButtonIdentifiers else { return }
+        buttonInteractions.forEach { interaction in
+            interaction.view?.removeInteraction(interaction)
+        }
+        buttonInteractions.removeAll()
+        trackedButtonIdentifiers = identifiers
+        for button in buttons {
+            let interaction = UIContextMenuInteraction(delegate: self)
+            button.addInteraction(interaction)
+            buttonInteractions.append(interaction)
+        }
     }
 
     private func indexForLocation(_ location: CGPoint) -> Int? {
@@ -90,6 +108,18 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
         let width = max(tabBar.bounds.width, 1)
         let raw = Int((location.x / width) * CGFloat(items.count))
         return max(0, min(items.count - 1, raw))
+    }
+
+    private func indexForInteraction(_ interaction: UIContextMenuInteraction, location: CGPoint) -> Int? {
+        if let view = interaction.view {
+            let buttons = tabButtonViews()
+            if let idx = buttons.firstIndex(of: view) {
+                return idx
+            }
+            let pointInTabBar = view.convert(location, to: tabBar)
+            return indexForLocation(pointInTabBar)
+        }
+        return indexForLocation(location)
     }
 
     private func applyInterfaceStyle() {
@@ -138,6 +168,11 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
         tabBar.addInteraction(ctx)
     }
 
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        refreshButtonContextInteractions()
+    }
+
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         applyInterfaceStyle()
@@ -176,6 +211,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
         if selectedIndex >= 0 && selectedIndex < tbarItems.count {
             tabBar.selectedItem = tbarItems[selectedIndex]
         }
+        refreshButtonContextInteractions()
     }
 
     private func applyTitleColors() {
@@ -267,7 +303,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
     // MARK: - UIContextMenuInteractionDelegate
     func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
         guard longPressEnabled, let items = tabBar.items, items.count > 0 else { return nil }
-        guard let idx = indexForLocation(location) else { return nil }
+        guard let idx = indexForInteraction(interaction, location: location) else { return nil }
 
         onLongPress?(idx, self.items[idx].route)
 
