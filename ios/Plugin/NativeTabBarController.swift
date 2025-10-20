@@ -59,23 +59,33 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
     private var forcedInterfaceStyle: UIUserInterfaceStyle = .unspecified
     private weak var trackedWindow: UIWindow?
 
+    private func tabButtonViews() -> [UIView] {
+        let buttonClass = NSClassFromString("UITabBarButton")
+        let buttons: [UIView] = tabBar.subviews.compactMap { view in
+            guard let buttonClass, view.isKind(of: buttonClass) else { return nil }
+            return view
+        }
+        return buttons.sorted(by: { $0.frame.minX < $1.frame.minX })
+    }
+
     private func indexForLocation(_ location: CGPoint) -> Int? {
         guard let items = tabBar.items, !items.isEmpty else { return nil }
         tabBar.layoutIfNeeded()
-        for (idx, item) in items.enumerated() {
-            if let view = item.value(forKey: "view") as? UIView {
-                if view.frame.contains(location) {
+        let buttons = tabButtonViews()
+        if buttons.count == items.count {
+            for (idx, button) in buttons.enumerated() {
+                let frame = button.convert(button.bounds, to: tabBar)
+                if frame.contains(location) {
                     return idx
                 }
             }
-        }
-        let nearest = items.enumerated().compactMap { (idx, item) -> (Int, CGFloat)? in
-            guard let view = item.value(forKey: "view") as? UIView else { return nil }
-            let distance = abs(view.center.x - location.x)
-            return (idx, distance)
-        }.min(by: { $0.1 < $1.1 })?.0
-        if let nearest = nearest {
-            return nearest
+            if let nearest = buttons.enumerated().min(by: { lhs, rhs in
+                let lhsCenter = lhs.element.convert(lhs.element.bounds, to: tabBar).midX
+                let rhsCenter = rhs.element.convert(rhs.element.bounds, to: tabBar).midX
+                return abs(lhsCenter - location.x) < abs(rhsCenter - location.x)
+            })?.offset {
+                return nearest
+            }
         }
         let width = max(tabBar.bounds.width, 1)
         let raw = Int((location.x / width) * CGFloat(items.count))
