@@ -28,7 +28,7 @@ struct HexUtil {
     }
 }
 
-final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContextMenuInteractionDelegate {
+final class NativeTabBarController: UIViewController, UITabBarDelegate {
 
     struct IconColors { var normal: String?; var selected: String?; var disabled: String? }
     struct TitlePalette {
@@ -58,7 +58,8 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
     private var longPressEnabled = true
     private var forcedInterfaceStyle: UIUserInterfaceStyle = .unspecified
     private weak var trackedWindow: UIWindow?
-    private var lastMenuIndex: Int?
+    private lazy var menuPresenter = ContextMenuPresenter()
+    private var longPressRecognizer: UILongPressGestureRecognizer?
 
     private func indexForLocation(_ location: CGPoint) -> Int? {
         guard let items = tabBar.items, !items.isEmpty else { return nil }
@@ -125,13 +126,20 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
             tabBar.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
 
-        let ctx = UIContextMenuInteraction(delegate: self)
-        tabBar.addInteraction(ctx)
+        let recognizer = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
+        recognizer.minimumPressDuration = 0.5
+        tabBar.addGestureRecognizer(recognizer)
+        self.longPressRecognizer = recognizer
     }
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         applyInterfaceStyle()
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        menuPresenter.dismiss(animated: false)
     }
 
     override func traitCollectionDidChange(_ previous: UITraitCollection?) {
@@ -148,6 +156,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
             if let m = t.ctxItems { perTabCtx[i] = m }
             if let tp = t.titlePalette { perTabTitles[i] = tp }
         }
+        menuPresenter.dismiss(animated: false)
         rebuildItems()
         applyTitleColors()
     }
@@ -229,9 +238,22 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
     func setGlobalTitlePalette(_ p: TitlePalette) { globalTitles = p; applyTitleColors() }
     func setTabTitlePalette(index: Int, _ p: TitlePalette) { perTabTitles[index] = p; applyTitleColors() }
 
-    func setLongPress(enabled: Bool) { longPressEnabled = enabled }
-    func setContextMenu(index: Int, items: [ContextItem]) { perTabCtx[index] = items }
-    func setDefaultContextMenu(items: [ContextItem]) { defaultCtx = items }
+    func setLongPress(enabled: Bool) {
+        longPressEnabled = enabled
+        longPressRecognizer?.isEnabled = enabled
+        if !enabled {
+            menuPresenter.dismiss(animated: false)
+        }
+    }
+    func setContextMenu(index: Int, items: [ContextItem]) {
+        perTabCtx[index] = items
+    }
+    func setDefaultContextMenu(items: [ContextItem]) {
+        defaultCtx = items
+        if items.isEmpty {
+            menuPresenter.dismiss(animated: false)
+        }
+    }
 
     func setBadge(index: Int, value: String?) {
         guard index >= 0, index < (tabBar.items?.count ?? 0) else { return }
@@ -255,78 +277,29 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
         return true
     }
 
-    // MARK: - UIContextMenuInteractionDelegate
-    func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
-        guard longPressEnabled, let items = tabBar.items, items.count > 0 else { return nil }
-        guard let idx = indexForLocation(location) else { return nil }
-        lastMenuIndex = idx
-
-        onLongPress?(idx, self.items[idx].route)
-
-        let menuItems = perTabCtx[idx] ?? defaultCtx
-        guard !menuItems.isEmpty else { return nil }
-
-        return UIContextMenuConfiguration(identifier: NSNumber(value: idx), previewProvider: nil) { [weak self] _ in
-            guard let self = self else { return nil }
-            let actions = menuItems.map { mi -> UIAction in
-                let img = mi.sfSymbol.flatMap { UIImage(systemName: $0) }
-                if #available(iOS 17.0, *) {
-                    return UIAction(title: mi.title, subtitle: mi.subtitle, image: img) { _ in
-                        self.onContextItem?(idx, mi.id)
-                    }
-                } else {
-                    return UIAction(title: mi.title, image: img) { _ in
-                        self.onContextItem?(idx, mi.id)
-                    }
-                }
-            }
-            return UIMenu(title: "", children: actions)
-        }
+    // MARK: - Long press menus
+    @objc private func handleLongPress(_ recognizer: UILongPressGestureRecognizer) {
+        guard longPressEnabled, recognizer.state == .began else { return }
+        let point = recognizer.location(in: tabBar)
+        guard let idx = indexForLocation(point) else { return }
+        presentMenu(at: idx)
     }
 
-    private func previewHostView(for index: Int) -> UIView? {
-        guard let item = tabBar.items?[index],
-              let button = item.value(forKey: "view") as? UIView else { return nil }
-        if let imageView = button.value(forKey: "imageView") as? UIView {
-            return imageView
-        }
-        return button
-    }
+    func presentMenu(at index: Int) {
+        guard index >= 0, index < items.count else { return }
+        let menuItems = perTabCtx[index] ?? defaultCtx
+        guard !menuItems.isEmpty else { return }
 
-    private func previewForIndex(_ index: Int?) -> UITargetedPreview? {
-        guard let idx = index,
-              let view = previewHostView(for: idx) else { return nil }
-        view.layoutIfNeeded()
-        let params = UIPreviewParameters()
-        params.backgroundColor = .clear
-        params.shadowPath = UIBezierPath(rect: .zero)
-        let radius = view.layer.cornerRadius
-        if radius > 0 {
-            params.visiblePath = UIBezierPath(roundedRect: view.bounds, cornerRadius: radius)
-        } else {
-            params.visiblePath = UIBezierPath(rect: view.bounds)
-        }
-        if let snapshot = view.snapshotView(afterScreenUpdates: false) {
-            snapshot.backgroundColor = .clear
-            snapshot.layer.cornerRadius = radius
-            snapshot.layer.masksToBounds = true
-            return UITargetedPreview(view: snapshot, parameters: params)
-        }
-        return UITargetedPreview(view: view, parameters: params)
-    }
+        let route = items[index].route
+        onLongPress?(index, route)
 
-    func contextMenuInteraction(_ interaction: UIContextMenuInteraction, previewForHighlightingMenuWith configuration: UIContextMenuConfiguration) -> UITargetedPreview? {
-        if let number = configuration.identifier as? NSNumber {
-            return previewForIndex(number.intValue)
+        menuPresenter.present(over: view,
+                              tabBar: tabBar,
+                              items: menuItems,
+                              tabIndex: index,
+                              route: route) { [weak self] itemId in
+            self?.onContextItem?(index, itemId)
         }
-        return previewForIndex(lastMenuIndex)
-    }
-
-    func contextMenuInteraction(_ interaction: UIContextMenuInteraction, previewForDismissingMenuWith configuration: UIContextMenuConfiguration) -> UITargetedPreview? {
-        if let number = configuration.identifier as? NSNumber {
-            return previewForIndex(number.intValue)
-        }
-        return previewForIndex(lastMenuIndex)
     }
 
     func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {
