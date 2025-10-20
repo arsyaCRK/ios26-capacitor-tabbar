@@ -294,7 +294,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         let route = items[index].route
         onLongPress?(index, route)
 
-        let hostView = view.superview ?? view
+        guard let hostView = view.window ?? view.superview ?? view else { return }
 
         menuPresenter.present(over: hostView,
                               tabBar: tabBar,
