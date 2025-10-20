@@ -28,7 +28,7 @@ struct HexUtil {
     }
 }
 
-final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContextMenuInteractionDelegate {
+final class NativeTabBarController: UIViewController, UITabBarDelegate {
 
     struct IconColors { var normal: String?; var selected: String?; var disabled: String? }
     struct TitlePalette {
@@ -58,69 +58,6 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
     private var longPressEnabled = true
     private var forcedInterfaceStyle: UIUserInterfaceStyle = .unspecified
     private weak var trackedWindow: UIWindow?
-    private var buttonInteractions: [UIContextMenuInteraction] = []
-    private var trackedButtonIdentifiers: [ObjectIdentifier] = []
-
-    private func tabButtonViews() -> [UIView] {
-        let buttonClass = NSClassFromString("UITabBarButton")
-        let buttons: [UIView] = tabBar.subviews.compactMap { view in
-            guard let buttonClass, view.isKind(of: buttonClass) else { return nil }
-            return view
-        }
-        return buttons.sorted(by: { $0.frame.minX < $1.frame.minX })
-    }
-
-    private func refreshButtonContextInteractions() {
-        let buttons = tabButtonViews()
-        let identifiers = buttons.map { ObjectIdentifier($0) }
-        guard identifiers != trackedButtonIdentifiers else { return }
-        buttonInteractions.forEach { interaction in
-            interaction.view?.removeInteraction(interaction)
-        }
-        buttonInteractions.removeAll()
-        trackedButtonIdentifiers = identifiers
-        for button in buttons {
-            let interaction = UIContextMenuInteraction(delegate: self)
-            button.addInteraction(interaction)
-            buttonInteractions.append(interaction)
-        }
-    }
-
-    private func indexForLocation(_ location: CGPoint) -> Int? {
-        guard let items = tabBar.items, !items.isEmpty else { return nil }
-        tabBar.layoutIfNeeded()
-        let buttons = tabButtonViews()
-        if buttons.count == items.count {
-            for (idx, button) in buttons.enumerated() {
-                let frame = button.convert(button.bounds, to: tabBar)
-                if frame.contains(location) {
-                    return idx
-                }
-            }
-            if let nearest = buttons.enumerated().min(by: { lhs, rhs in
-                let lhsCenter = lhs.element.convert(lhs.element.bounds, to: tabBar).midX
-                let rhsCenter = rhs.element.convert(rhs.element.bounds, to: tabBar).midX
-                return abs(lhsCenter - location.x) < abs(rhsCenter - location.x)
-            })?.offset {
-                return nearest
-            }
-        }
-        let width = max(tabBar.bounds.width, 1)
-        let raw = Int((location.x / width) * CGFloat(items.count))
-        return max(0, min(items.count - 1, raw))
-    }
-
-    private func indexForInteraction(_ interaction: UIContextMenuInteraction, location: CGPoint) -> Int? {
-        if let view = interaction.view {
-            let buttons = tabButtonViews()
-            if let idx = buttons.firstIndex(of: view) {
-                return idx
-            }
-            let pointInTabBar = view.convert(location, to: tabBar)
-            return indexForLocation(pointInTabBar)
-        }
-        return indexForLocation(location)
-    }
 
     private func applyInterfaceStyle() {
         overrideUserInterfaceStyle = forcedInterfaceStyle
@@ -163,14 +100,6 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
             tabBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             tabBar.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
-
-        let ctx = UIContextMenuInteraction(delegate: self)
-        tabBar.addInteraction(ctx)
-    }
-
-    override func viewDidLayoutSubviews() {
-        super.viewDidLayoutSubviews()
-        refreshButtonContextInteractions()
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -211,7 +140,6 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
         if selectedIndex >= 0 && selectedIndex < tbarItems.count {
             tabBar.selectedItem = tbarItems[selectedIndex]
         }
-        refreshButtonContextInteractions()
     }
 
     private func applyTitleColors() {
@@ -283,6 +211,31 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
         tabBar.items?[index].badgeValue = (value?.isEmpty == false) ? value : nil
     }
 
+    private func configurationForMenu(at index: Int) -> UIContextMenuConfiguration? {
+        guard longPressEnabled, index >= 0, index < items.count else { return nil }
+        let route = items[index].route
+        onLongPress?(index, route)
+        let menuItems = perTabCtx[index] ?? defaultCtx
+        guard !menuItems.isEmpty else { return nil }
+        let identifier = NSString(string: "\(index)")
+        return UIContextMenuConfiguration(identifier: identifier, previewProvider: nil) { [weak self] _ in
+            guard let self = self else { return nil }
+            let actions = menuItems.map { mi -> UIAction in
+                let image = mi.sfSymbol.flatMap { UIImage(systemName: $0) }
+                if #available(iOS 17.0, *) {
+                    return UIAction(title: mi.title, subtitle: mi.subtitle, image: image) { _ in
+                        self.onContextItem?(index, mi.id)
+                    }
+                } else {
+                    return UIAction(title: mi.title, image: image) { _ in
+                        self.onContextItem?(index, mi.id)
+                    }
+                }
+            }
+            return UIMenu(title: "", children: actions)
+        }
+    }
+
     func setInterfaceStyle(_ style: UIUserInterfaceStyle) {
         forcedInterfaceStyle = style
         applyInterfaceStyle()
@@ -334,5 +287,10 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
         let reselect = (idx == selectedIndex)
         selectedIndex = idx
         onSelect?(idx, route, reselect)
+    }
+
+    func tabBar(_ tabBar: UITabBar, contextMenuConfigurationFor item: UITabBarItem, point: CGPoint) -> UIContextMenuConfiguration? {
+        guard let idx = tabBar.items?.firstIndex(of: item) else { return nil }
+        return configurationForMenu(at: idx)
     }
 }
