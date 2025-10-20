@@ -28,7 +28,7 @@ struct HexUtil {
     }
 }
 
-final class NativeTabBarController: UIViewController, UITabBarDelegate {
+final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestureRecognizerDelegate {
 
     struct IconColors { var normal: String?; var selected: String?; var disabled: String? }
     struct TitlePalette {
@@ -128,6 +128,9 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate {
 
         let recognizer = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
         recognizer.minimumPressDuration = 0.5
+        recognizer.allowableMovement = 20
+        recognizer.cancelsTouchesInView = false
+        recognizer.delegate = self
         tabBar.addGestureRecognizer(recognizer)
         self.longPressRecognizer = recognizer
     }
@@ -245,9 +248,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate {
             menuPresenter.dismiss(animated: false)
         }
     }
-    func setContextMenu(index: Int, items: [ContextItem]) {
-        perTabCtx[index] = items
-    }
+    func setContextMenu(index: Int, items: [ContextItem]) { perTabCtx[index] = items }
     func setDefaultContextMenu(items: [ContextItem]) {
         defaultCtx = items
         if items.isEmpty {
@@ -293,13 +294,20 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate {
         let route = items[index].route
         onLongPress?(index, route)
 
-        menuPresenter.present(over: view,
+        let hostView = view.superview ?? view
+
+        menuPresenter.present(over: hostView,
                               tabBar: tabBar,
                               items: menuItems,
                               tabIndex: index,
                               route: route) { [weak self] itemId in
             self?.onContextItem?(index, itemId)
         }
+    }
+
+    // MARK: - UIGestureRecognizerDelegate
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        return true
     }
 
     func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {

@@ -244,7 +244,9 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
         let targetFrame = barButton.convert(barButton.bounds, to: container)
         let preferredY = targetFrame.minY - 16
         let safeTop = container.safeAreaInsets.top + 12
-        let topConstant = max(safeTop, preferredY - height)
+        let safeBottom = container.safeAreaInsets.bottom + 12
+        let maxTop = container.bounds.height - safeBottom - height
+        let topConstant = min(max(safeTop, preferredY - height), maxTop)
 
         let minX = menuWidth / 2 + 12
         let maxX = container.bounds.width - menuWidth / 2 - 12
