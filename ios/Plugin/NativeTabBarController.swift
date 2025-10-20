@@ -59,6 +59,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate {
     private var forcedInterfaceStyle: UIUserInterfaceStyle = .unspecified
     private weak var trackedWindow: UIWindow?
     private var longPressRecognizer: UILongPressGestureRecognizer?
+    private var actionButton: NativeTabBarButton?
 
     private func indexForLocation(_ location: CGPoint) -> Int? {
         guard let items = tabBar.items, !items.isEmpty else { return nil }
@@ -130,6 +131,8 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate {
         tabBar.addGestureRecognizer(recognizer)
         recognizer.isEnabled = longPressEnabled
         self.longPressRecognizer = recognizer
+
+        configureActionButton()
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -235,9 +238,13 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate {
     func setLongPress(enabled: Bool) {
         longPressEnabled = enabled
         longPressRecognizer?.isEnabled = enabled
+        actionButton?.isHidden = !enabled
     }
     func setContextMenu(index: Int, items: [ContextItem]) { perTabCtx[index] = items }
-    func setDefaultContextMenu(items: [ContextItem]) { defaultCtx = items }
+    func setDefaultContextMenu(items: [ContextItem]) {
+        defaultCtx = items
+        updateActionButtonMenu()
+    }
 
     func setBadge(index: Int, value: String?) {
         guard index >= 0, index < (tabBar.items?.count ?? 0) else { return }
@@ -302,6 +309,39 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate {
 
     func presentMenu(at index: Int) {
         presentActionSheet(for: index)
+    }
+
+    private func configureActionButton() {
+        guard actionButton == nil else { return }
+        let button = NativeTabBarButton()
+        button.showsMenuAsPrimaryAction = true
+        button.addTarget(self, action: #selector(actionButtonTapped), for: .touchUpInside)
+        view.addSubview(button)
+        NSLayoutConstraint.activate([
+            button.centerYAnchor.constraint(equalTo: tabBar.centerYAnchor),
+            button.leadingAnchor.constraint(equalTo: tabBar.trailingAnchor, constant: 12)
+        ])
+        self.actionButton = button
+        updateActionButtonMenu()
+    }
+
+    private func updateActionButtonMenu() {
+        guard let button = actionButton else { return }
+        let menuItems = defaultCtx
+        guard !menuItems.isEmpty else {
+            button.menu = nil
+            button.isHidden = true
+            return
+        }
+        button.isHidden = !longPressEnabled
+        let actions = menuItems.map { item -> UIAction in
+            let image = item.sfSymbol.flatMap { UIImage(systemName: $0) }
+            return UIAction(title: item.title, image: image) { [weak self] _ in
+                guard let self else { return }
+                self.onContextItem?(self.selectedIndex, item.id)
+            }
+        }
+        button.menu = UIMenu(title: "", children: actions)
     }
 
     func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {
