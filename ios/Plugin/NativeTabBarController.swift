@@ -238,7 +238,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate {
     func setLongPress(enabled: Bool) {
         longPressEnabled = enabled
         longPressRecognizer?.isEnabled = enabled
-        actionButton?.isHidden = !enabled
+        updateActionButtonMenu()
     }
     func setContextMenu(index: Int, items: [ContextItem]) { perTabCtx[index] = items }
     func setDefaultContextMenu(items: [ContextItem]) {
@@ -314,7 +314,6 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate {
     private func configureActionButton() {
         guard actionButton == nil else { return }
         let button = NativeTabBarButton()
-        button.showsMenuAsPrimaryAction = true
         button.addTarget(self, action: #selector(actionButtonTapped), for: .touchUpInside)
         view.addSubview(button)
         NSLayoutConstraint.activate([
@@ -328,20 +327,41 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate {
     private func updateActionButtonMenu() {
         guard let button = actionButton else { return }
         let menuItems = defaultCtx
-        guard !menuItems.isEmpty else {
-            button.menu = nil
-            button.isHidden = true
-            return
-        }
-        button.isHidden = !longPressEnabled
-        let actions = menuItems.map { item -> UIAction in
-            let image = item.sfSymbol.flatMap { UIImage(systemName: $0) }
-            return UIAction(title: item.title, image: image) { [weak self] _ in
+        button.isHidden = menuItems.isEmpty || !longPressEnabled
+    }
+
+    @objc private func actionButtonTapped() {
+        guard !defaultCtx.isEmpty else { return }
+        presentDefaultActionSheet()
+    }
+
+    private func presentDefaultActionSheet() {
+        let menuItems = defaultCtx
+        guard !menuItems.isEmpty else { return }
+
+        let alert = UIAlertController(title: nil, message: nil, preferredStyle: .actionSheet)
+
+        menuItems.forEach { menuItem in
+            let action = UIAlertAction(title: menuItem.title, style: .default) { [weak self] _ in
                 guard let self else { return }
-                self.onContextItem?(self.selectedIndex, item.id)
+                self.onContextItem?(self.selectedIndex, menuItem.id)
             }
+            if let symbol = menuItem.sfSymbol, let image = UIImage(systemName: symbol) {
+                action.setValue(image, forKey: "image")
+            }
+            alert.addAction(action)
         }
-        button.menu = UIMenu(title: "", children: actions)
+
+        alert.addAction(UIAlertAction(title: NSLocalizedString("Cancel", comment: ""), style: .cancel, handler: nil))
+
+        if let popover = alert.popoverPresentationController,
+           let host = actionButton {
+            popover.sourceView = host
+            popover.sourceRect = host.bounds
+            popover.permittedArrowDirections = [.down, .up]
+        }
+
+        present(alert, animated: true, completion: nil)
     }
 
     func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {
