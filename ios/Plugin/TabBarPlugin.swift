@@ -320,5 +320,12 @@ public class TabBarPlugin: CAPPlugin {
     }
   }
 
-  @objc public func presentContextMenu(_ call: CAPPluginCall) { call.resolve() }
+  @objc public func presentContextMenu(_ call: CAPPluginCall) {
+    DispatchQueue.main.async {
+      let idx = call.getInt("index") ?? -1
+      guard idx >= 0 else { call.reject("index required"); return }
+      self.host?.presentMenu(at: idx)
+      call.resolve()
+    }
+  }
 }
