@@ -130,7 +130,7 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
                 .scaledBy(x: 0.95, y: 0.95)
         }
 
-        let completion: (Bool) -> Void = { [weak self] _ in
+        let completion: (UIViewAnimatingPosition) -> Void = { [weak self] _ in
             self?.stackView?.arrangedSubviews.forEach { $0.removeFromSuperview() }
             self?.stackView = nil
             self?.menuView?.removeFromSuperview()
@@ -144,12 +144,14 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
         }
 
         if animated {
-            UIViewPropertyAnimator(duration: 0.18, curve: .easeIn) {
+            let animator = UIViewPropertyAnimator(duration: 0.18, curve: .easeIn) {
                 animations()
-            }.addCompletion(completion)
+            }
+            animator.addCompletion(completion)
+            animator.startAnimation()
         } else {
             animations()
-            completion(true)
+            completion(.end)
         }
     }
 
