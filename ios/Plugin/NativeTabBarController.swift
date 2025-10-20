@@ -291,7 +291,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate {
         alert.addAction(UIAlertAction(title: NSLocalizedString("Cancel", comment: ""), style: .cancel, handler: nil))
 
         if let popover = alert.popoverPresentationController,
-           let button = tabBar.items?[index]?.value(forKey: "view") as? UIView {
+           let button = tabBar.items?[index].value(forKey: "view") as? UIView {
             popover.sourceView = button
             popover.sourceRect = button.bounds
             popover.permittedArrowDirections = [.down, .up]
