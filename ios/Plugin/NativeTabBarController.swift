@@ -314,11 +314,13 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate {
     private func configureActionButton() {
         guard actionButton == nil else { return }
         let button = NativeTabBarButton()
+        button.isHidden = true
         button.addTarget(self, action: #selector(actionButtonTapped), for: .touchUpInside)
         view.addSubview(button)
         NSLayoutConstraint.activate([
             button.centerYAnchor.constraint(equalTo: tabBar.centerYAnchor),
-            button.leadingAnchor.constraint(equalTo: tabBar.trailingAnchor, constant: 12)
+            button.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            button.leadingAnchor.constraint(greaterThanOrEqualTo: tabBar.trailingAnchor, constant: 8)
         ])
         self.actionButton = button
         updateActionButtonMenu()
