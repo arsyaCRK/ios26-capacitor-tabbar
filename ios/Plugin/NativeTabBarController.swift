@@ -284,21 +284,31 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
         }
     }
 
+    private func previewHostView(for index: Int) -> UIView? {
+        guard let item = tabBar.items?[index],
+              let button = item.value(forKey: "view") as? UIView else { return nil }
+        if let imageView = button.value(forKey: "imageView") as? UIView {
+            return imageView
+        }
+        return button
+    }
+
     private func previewForIndex(_ index: Int?) -> UITargetedPreview? {
         guard let idx = index,
-              let item = tabBar.items?[idx],
-              let view = item.value(forKey: "view") as? UIView else { return nil }
+              let view = previewHostView(for: idx) else { return nil }
         view.layoutIfNeeded()
         let params = UIPreviewParameters()
         params.backgroundColor = .clear
-        let cornerRadius = view.layer.cornerRadius
-        if cornerRadius > 0 {
-            params.visiblePath = UIBezierPath(roundedRect: view.bounds, cornerRadius: cornerRadius)
+        params.shadowPath = UIBezierPath(rect: .zero)
+        let radius = view.layer.cornerRadius
+        if radius > 0 {
+            params.visiblePath = UIBezierPath(roundedRect: view.bounds, cornerRadius: radius)
         } else {
             params.visiblePath = UIBezierPath(rect: view.bounds)
         }
         if let snapshot = view.snapshotView(afterScreenUpdates: false) {
-            snapshot.layer.cornerRadius = cornerRadius
+            snapshot.backgroundColor = .clear
+            snapshot.layer.cornerRadius = radius
             snapshot.layer.masksToBounds = true
             return UITargetedPreview(view: snapshot, parameters: params)
         }
