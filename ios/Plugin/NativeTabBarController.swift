@@ -183,17 +183,6 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         }
     }
 
-    private func fallbackTitleColor(for index: Int, style: UIUserInterfaceStyle) -> UIColor? {
-        let palette = perTabTitles[index] ?? globalTitles
-        let pick: String?
-        if style == .dark {
-            pick = palette.darkNormal ?? palette.darkSelected ?? palette.darkDisabled
-        } else {
-            pick = palette.lightNormal ?? palette.lightSelected ?? palette.lightDisabled
-        }
-        return HexUtil.color(pick) ?? UIColor.label
-    }
-
     func setContextMenuTitleColors(light: String?, dark: String?) {
         menuTitleColors = MenuColorSet(light: light, dark: dark)
         refreshMenuPresenterTheme()
@@ -208,9 +197,8 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         let style = effectiveInterfaceStyle()
         let targetIndex = forcedIndex ?? selectedIndex
         let resolvedIndex: Int? = items.isEmpty ? nil : max(0, min(targetIndex, items.count - 1))
-        let fallbackTitle = resolvedIndex.flatMap { fallbackTitleColor(for: $0, style: style) } ?? UIColor.label
-        let titleColor = resolveColor(from: menuTitleColors, style: style) ?? fallbackTitle
-        let subtitleColor = resolveColor(from: menuSubtitleColors, style: style) ?? UIColor.secondaryLabel
+        let titleColor = resolveColor(from: menuTitleColors, style: style) ?? (style == .dark ? UIColor.white : UIColor.black)
+        let subtitleColor = resolveColor(from: menuSubtitleColors, style: style) ?? (style == .dark ? UIColor.white.withAlphaComponent(0.72) : UIColor.black.withAlphaComponent(0.62))
         let highlightBase: String?
         if let index = resolvedIndex {
             highlightBase = perTabColors[index]?.selected ?? globalColors.selected
@@ -354,8 +342,8 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         guard let hostView = view.window ?? view.superview ?? view else { return }
 
         let style = effectiveInterfaceStyle()
-        let titleColor = resolveColor(from: menuTitleColors, style: style) ?? fallbackTitleColor(for: index, style: style) ?? UIColor.label
-        let subtitleColor = resolveColor(from: menuSubtitleColors, style: style) ?? UIColor.secondaryLabel
+        let titleColor = resolveColor(from: menuTitleColors, style: style) ?? (style == .dark ? UIColor.white : UIColor.black)
+        let subtitleColor = resolveColor(from: menuSubtitleColors, style: style) ?? (style == .dark ? UIColor.white.withAlphaComponent(0.72) : UIColor.black.withAlphaComponent(0.62))
         let highlightColor = HexUtil.color(perTabColors[index]?.selected ?? globalColors.selected) ?? (style == .dark ? UIColor.systemBlue : UIColor.systemBlue)
 
         menuPresenter.present(over: hostView,
