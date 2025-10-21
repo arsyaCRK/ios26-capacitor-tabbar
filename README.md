@@ -280,6 +280,8 @@ await TabBar.setLongPressEnabled({ enabled: true })
 
 Назначает **контекстное меню** только для указанного таба (перекрывает `defaultItems` из `show`).
 
+> В текущей реализации используется системный `UIContextMenuInteraction`, поэтому внешний вид меню соответствует стандартному меню iOS/iPadOS (цвета и фон определяются системой; методы настройки цветов работают как заглушки).
+
 ```ts
 await TabBar.setContextMenuForIndex({
   index: 1,
@@ -287,41 +289,6 @@ await TabBar.setContextMenuForIndex({
     { id: 'refresh', title: 'Обновить', sfSymbol: 'arrow.clockwise' },
     { id: 'remove',  title: 'Удалить',  sfSymbol: 'trash' }
   ]
-})
-```
-
----
-
-### `setContextMenuTitleColors({ light, dark }: { light?: string; dark?: string }): Promise<void>`
-
-Задаёт цвета текста пунктов контекстного меню для светлой и тёмной темы.
-
-```ts
-await TabBar.setContextMenuTitleColors({
-  light: '#000000',
-  dark: '#FFFFFF'
-})
-```
-
-### `setContextMenuSubtitleColors({ light, dark }: { light?: string; dark?: string }): Promise<void>`
-
-Настраивает цвета подзаголовков (subtitle) пунктов контекстного меню.
-
-```ts
-await TabBar.setContextMenuSubtitleColors({
-  light: '#6B7280',
-  dark: '#B3B9C9'
-})
-```
-
-### `setContextMenuBackgroundTint({ light, dark }: { light?: string; dark?: string }): Promise<void>`
-
-Изменяет базовый тон стеклянного фона контекстного меню. Альфа-канал применяется автоматически.
-
-```ts
-await TabBar.setContextMenuBackgroundTint({
-  light: '#FFFFFF',
-  dark: '#0A84FF'
 })
 ```
 

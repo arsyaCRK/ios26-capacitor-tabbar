@@ -28,7 +28,7 @@ struct HexUtil {
     }
 }
 
-final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestureRecognizerDelegate {
+final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContextMenuInteractionDelegate {
 
     struct IconColors { var normal: String?; var selected: String?; var disabled: String? }
     struct TitlePalette {
@@ -37,8 +37,8 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
     }
     struct ContextItem { let id: String; let title: String; let subtitle: String?; let sfSymbol: String? }
     struct TabItem { let title: String; let sfSymbol: String; let route: String; let badge: String?; var iconColors: IconColors?; var ctxItems: [ContextItem]?; var titlePalette: TitlePalette? }
-    struct MenuColorSet { var light: String?; var dark: String? }
-
+    // Legacy custom context menu support (ContextMenuPresenter) removed in favor of system UIContextMenuInteraction.
+    // To revert, see the commented block at the end of this file for the required properties and methods.
     var onSelect: ((Int, String, Bool) -> Void)?
     var onLongPress: ((Int, String) -> Void)?
     var onContextItem: ((Int, String) -> Void)?
@@ -59,34 +59,6 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
     private var longPressEnabled = true
     private var forcedInterfaceStyle: UIUserInterfaceStyle = .unspecified
     private weak var trackedWindow: UIWindow?
-    private lazy var menuPresenter = ContextMenuPresenter()
-    private var longPressRecognizer: UILongPressGestureRecognizer?
-    private var menuTitleColors = MenuColorSet(light: nil, dark: nil)
-    private var menuSubtitleColors = MenuColorSet(light: nil, dark: nil)
-    private var menuBackgroundTint = MenuColorSet(light: nil, dark: nil)
-
-    private func indexForLocation(_ location: CGPoint) -> Int? {
-        guard let items = tabBar.items, !items.isEmpty else { return nil }
-        tabBar.layoutIfNeeded()
-        for (idx, item) in items.enumerated() {
-            if let view = item.value(forKey: "view") as? UIView {
-                if view.frame.contains(location) {
-                    return idx
-                }
-            }
-        }
-        let nearest = items.enumerated().compactMap { (idx, item) -> (Int, CGFloat)? in
-            guard let view = item.value(forKey: "view") as? UIView else { return nil }
-            let distance = abs(view.center.x - location.x)
-            return (idx, distance)
-        }.min(by: { $0.1 < $1.1 })?.0
-        if let nearest = nearest {
-            return nearest
-        }
-        let width = max(tabBar.bounds.width, 1)
-        let raw = Int((location.x / width) * CGFloat(items.count))
-        return max(0, min(items.count - 1, raw))
-    }
 
     private func applyInterfaceStyle() {
         overrideUserInterfaceStyle = forcedInterfaceStyle
@@ -96,7 +68,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
             window.overrideUserInterfaceStyle = forcedInterfaceStyle
             trackedWindow = window
         }
-        refreshMenuPresenterTheme()
+        attachContextMenuInteractions()
     }
 
     private func applyAppearance() {
@@ -130,14 +102,6 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
             tabBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             tabBar.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
-
-        let recognizer = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
-        recognizer.minimumPressDuration = 0.33
-        recognizer.allowableMovement = 20
-        recognizer.cancelsTouchesInView = false
-        recognizer.delegate = self
-        tabBar.addGestureRecognizer(recognizer)
-        self.longPressRecognizer = recognizer
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -145,15 +109,19 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         applyInterfaceStyle()
     }
 
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        attachContextMenuInteractions()
+    }
+
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-        menuPresenter.dismiss(animated: false)
     }
 
     override func traitCollectionDidChange(_ previous: UITraitCollection?) {
         super.traitCollectionDidChange(previous)
         applyTitleColors()
-        refreshMenuPresenterTheme()
+        attachContextMenuInteractions()
     }
 
     func configure(tabs: [TabItem], selected: Int) {
@@ -165,7 +133,6 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
             if let m = t.ctxItems { perTabCtx[i] = m }
             if let tp = t.titlePalette { perTabTitles[i] = tp }
         }
-        menuPresenter.dismiss(animated: false)
         rebuildItems()
         applyTitleColors()
     }
@@ -173,47 +140,6 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
     private func effectiveInterfaceStyle() -> UIUserInterfaceStyle {
         let style = forcedInterfaceStyle == .unspecified ? traitCollection.userInterfaceStyle : forcedInterfaceStyle
         return style
-    }
-
-    private func resolveColor(from set: MenuColorSet, style: UIUserInterfaceStyle) -> UIColor? {
-        switch style {
-        case .dark:
-            return HexUtil.color(set.dark)
-        default:
-            return HexUtil.color(set.light)
-        }
-    }
-
-    func setContextMenuTitleColors(light: String?, dark: String?) {
-        menuTitleColors = MenuColorSet(light: light, dark: dark)
-        refreshMenuPresenterTheme()
-    }
-
-    func setContextMenuSubtitleColors(light: String?, dark: String?) {
-        menuSubtitleColors = MenuColorSet(light: light, dark: dark)
-        refreshMenuPresenterTheme()
-    }
-
-    func setContextMenuBackgroundTint(light: String?, dark: String?) {
-        menuBackgroundTint = MenuColorSet(light: light, dark: dark)
-        refreshMenuPresenterTheme()
-    }
-
-    private func refreshMenuPresenterTheme(forcedIndex: Int? = nil) {
-        let style = effectiveInterfaceStyle()
-        let targetIndex = forcedIndex ?? selectedIndex
-        let resolvedIndex: Int? = items.isEmpty ? nil : max(0, min(targetIndex, items.count - 1))
-        let titleColor = resolveColor(from: menuTitleColors, style: style) ?? (style == .dark ? UIColor.white : UIColor.black)
-        let subtitleColor = resolveColor(from: menuSubtitleColors, style: style) ?? (style == .dark ? UIColor.white.withAlphaComponent(0.6) : UIColor.black.withAlphaComponent(0.6))
-        let highlightBase: String?
-        if let index = resolvedIndex {
-            highlightBase = perTabColors[index]?.selected ?? globalColors.selected
-        } else {
-            highlightBase = globalColors.selected
-        }
-        let highlightColor = HexUtil.color(highlightBase) ?? (style == .dark ? UIColor.systemBlue : UIColor.systemBlue)
-        let backgroundBase = resolveColor(from: menuBackgroundTint, style: style)
-        menuPresenter.updateColors(style: style, titleColor: titleColor, subtitleColor: subtitleColor, highlightColor: highlightColor, backgroundColor: backgroundBase)
     }
 
     private func rebuildItems() {
@@ -231,6 +157,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         if selectedIndex >= 0 && selectedIndex < tbarItems.count {
             tabBar.selectedItem = tbarItems[selectedIndex]
         }
+        DispatchQueue.main.async { self.attachContextMenuInteractions() }
     }
 
     private func applyTitleColors() {
@@ -293,19 +220,20 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
     func setGlobalTitlePalette(_ p: TitlePalette) { globalTitles = p; applyTitleColors() }
     func setTabTitlePalette(index: Int, _ p: TitlePalette) { perTabTitles[index] = p; applyTitleColors() }
 
+    func setContextMenuTitleColors(light: String?, dark: String?) { /* system context menu uses default styling */ }
+    func setContextMenuSubtitleColors(light: String?, dark: String?) { /* system context menu uses default styling */ }
+
     func setLongPress(enabled: Bool) {
         longPressEnabled = enabled
-        longPressRecognizer?.isEnabled = enabled
-        if !enabled {
-            menuPresenter.dismiss(animated: false)
-        }
+        DispatchQueue.main.async { self.attachContextMenuInteractions() }
     }
-    func setContextMenu(index: Int, items: [ContextItem]) { perTabCtx[index] = items }
+    func setContextMenu(index: Int, items: [ContextItem]) {
+        perTabCtx[index] = items
+        DispatchQueue.main.async { self.attachContextMenuInteractions() }
+    }
     func setDefaultContextMenu(items: [ContextItem]) {
         defaultCtx = items
-        if items.isEmpty {
-            menuPresenter.dismiss(animated: false)
-        }
+        DispatchQueue.main.async { self.attachContextMenuInteractions() }
     }
 
     func setBadge(index: Int, value: String?) {
@@ -330,49 +258,6 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         return true
     }
 
-    // MARK: - Long press menus
-    @objc private func handleLongPress(_ recognizer: UILongPressGestureRecognizer) {
-        guard longPressEnabled, recognizer.state == .began else { return }
-        let point = recognizer.location(in: tabBar)
-        guard let idx = indexForLocation(point) else { return }
-        presentMenu(at: idx)
-    }
-
-    func presentMenu(at index: Int) {
-        guard index >= 0, index < items.count else { return }
-        let menuItems = perTabCtx[index] ?? defaultCtx
-        guard !menuItems.isEmpty else { return }
-
-        let route = items[index].route
-        onLongPress?(index, route)
-
-        guard let hostView = view.window ?? view.superview ?? view else { return }
-
-        let style = effectiveInterfaceStyle()
-        let titleColor = resolveColor(from: menuTitleColors, style: style) ?? (style == .dark ? UIColor.white : UIColor.black)
-        let subtitleColor = resolveColor(from: menuSubtitleColors, style: style) ?? (style == .dark ? UIColor.white.withAlphaComponent(0.6) : UIColor.black.withAlphaComponent(0.6))
-        let highlightColor = HexUtil.color(perTabColors[index]?.selected ?? globalColors.selected) ?? (style == .dark ? UIColor.systemBlue : UIColor.systemBlue)
-        let backgroundBase = resolveColor(from: menuBackgroundTint, style: style)
-
-        menuPresenter.present(over: hostView,
-                              tabBar: tabBar,
-                              items: menuItems,
-                              tabIndex: index,
-                              route,
-                              style: style,
-                              titleColor: titleColor,
-                              subtitleColor: subtitleColor,
-                              highlightColor: highlightColor,
-                              backgroundColor: backgroundBase) { [weak self] itemId in
-            self?.onContextItem?(index, itemId)
-        }
-    }
-
-    // MARK: - UIGestureRecognizerDelegate
-    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-        return true
-    }
-
     func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {
         let idx = item.tag
         let route = items[idx].route
@@ -380,4 +265,94 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         selectedIndex = idx
         onSelect?(idx, route, reselect)
     }
+
+    private func attachContextMenuInteractions() {
+        guard let items = tabBar.items else { return }
+        for (index, item) in items.enumerated() {
+            guard let view = item.value(forKey: "view") as? UIView else { continue }
+            view.interactions
+                .filter { $0 is UIContextMenuInteraction }
+                .forEach { view.removeInteraction($0) }
+
+            let menuItems = contextMenuItems(for: index)
+            if longPressEnabled, !menuItems.isEmpty {
+                view.addInteraction(UIContextMenuInteraction(delegate: self))
+            }
+        }
+    }
+
+    private func contextMenuItems(for index: Int) -> [ContextItem] {
+        if let tabItems = perTabCtx[index], !tabItems.isEmpty { return tabItems }
+        return defaultCtx
+    }
+
+    private func tabIndex(for interaction: UIContextMenuInteraction) -> Int? {
+        guard let view = interaction.view, let items = tabBar.items else { return nil }
+        for (idx, item) in items.enumerated() {
+            if let buttonView = item.value(forKey: "view") as? UIView, buttonView === view {
+                return idx
+            }
+        }
+        return nil
+    }
+
+    private func buildMenu(for index: Int, items: [ContextItem]) -> UIMenu {
+        let actions: [UIMenuElement] = items.map { item in
+            let image = item.sfSymbol.flatMap { UIImage(systemName: $0) }
+            if #available(iOS 15.0, *) {
+                return UIAction(title: item.title, subtitle: item.subtitle, image: image) { [weak self] _ in
+                    self?.onContextItem?(index, item.id)
+                }
+            } else {
+                let action = UIAction(title: item.title, image: image) { [weak self] _ in
+                    self?.onContextItem?(index, item.id)
+                }
+                action.discoverabilityTitle = item.subtitle
+                return action
+            }
+        }
+        return UIMenu(title: "", children: actions)
+    }
+
+    // MARK: - UIContextMenuInteractionDelegate
+    func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
+        guard longPressEnabled, let index = tabIndex(for: interaction) else { return nil }
+        let items = contextMenuItems(for: index)
+        guard !items.isEmpty else { return nil }
+        let route = self.items[index].route
+        onLongPress?(index, route)
+        let identifier = NSNumber(value: index)
+        return UIContextMenuConfiguration(identifier: identifier, previewProvider: nil) { [weak self] _ in
+            guard let self = self else { return nil }
+            return self.buildMenu(for: index, items: items)
+        }
+    }
+
+    func contextMenuInteraction(_ interaction: UIContextMenuInteraction, previewForHighlightingMenuWithConfiguration configuration: UIContextMenuConfiguration) -> UITargetedPreview? {
+        guard let view = interaction.view else { return nil }
+        let parameters = UIPreviewParameters()
+        parameters.backgroundColor = .clear
+        return UITargetedPreview(view: view, parameters: parameters)
+    }
+
+    func contextMenuInteraction(_ interaction: UIContextMenuInteraction, previewForDismissingMenuWithConfiguration configuration: UIContextMenuConfiguration) -> UITargetedPreview? {
+        guard let view = interaction.view else { return nil }
+        let parameters = UIPreviewParameters()
+        parameters.backgroundColor = .clear
+        return UITargetedPreview(view: view, parameters: parameters)
+    }
+
 }
+
+// MARK: - Legacy custom context menu reference
+/*
+ Чтобы вернуться к полностью кастомной реализации (ContextMenuPresenter):
+   • Верните объявление `private struct MenuColorSet { var light: String?; var dark: String? }` и связанные
+     свойства `menuPresenter`, `menuTitleColors`, `menuSubtitleColors`, `menuBackgroundTint`, а также
+     `longPressRecognizer`.
+   • В `viewDidLoad()` снова добавьте `UILongPressGestureRecognizer` и восстановите методы
+     `handleLongPress(_:)` и `presentMenu(at:)` (см. прежнюю версию файла).
+   • Контроллер `ContextMenuPresenter` всё ещё находится в `ios/Plugin/ContextMenuPresenter.swift` и
+     готов к использованию.
+  Эти подсказки оставлены, чтобы можно было быстро вернуть предыдущий подход при необходимости.
+*/

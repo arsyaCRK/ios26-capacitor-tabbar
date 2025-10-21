@@ -8,7 +8,6 @@ export const TabBar = registerPlugin<TabBarPlugin>('MmsmartCapacitorIos26Tabbar'
     setTitleColors: async () => {}, setTabTitleColors: async () => {},
     setLongPressEnabled: async () => {}, setContextMenuForIndex: async () => {},
     setContextMenuTitleColors: async () => {}, setContextMenuSubtitleColors: async () => {},
-    setContextMenuBackgroundTint: async () => {},
     presentContextMenu: async () => {}, setLayout: async () => {},
     setBottomOffset: async () => {}, setUserInterfaceStyle: async () => {},
     addListener: async (_e: any, _cb: any) => ({ remove: () => {} })
