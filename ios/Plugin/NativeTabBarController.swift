@@ -28,7 +28,7 @@ struct HexUtil {
     }
 }
 
-final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContextMenuInteractionDelegate {
+final class NativeTabBarController: UIViewController, UITabBarDelegate {
 
     struct IconColors { var normal: String?; var selected: String?; var disabled: String? }
     struct TitlePalette {
@@ -68,7 +68,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
             window.overrideUserInterfaceStyle = forcedInterfaceStyle
             trackedWindow = window
         }
-        attachContextMenuInteractions()
+        if #available(iOS 26.0, *) { attachContextMenuInteractions() }
     }
 
     private func applyAppearance() {
@@ -111,7 +111,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        attachContextMenuInteractions()
+        if #available(iOS 26.0, *) { attachContextMenuInteractions() }
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -121,7 +121,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
     override func traitCollectionDidChange(_ previous: UITraitCollection?) {
         super.traitCollectionDidChange(previous)
         applyTitleColors()
-        attachContextMenuInteractions()
+        if #available(iOS 26.0, *) { attachContextMenuInteractions() }
     }
 
     func configure(tabs: [TabItem], selected: Int) {
@@ -157,7 +157,11 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
         if selectedIndex >= 0 && selectedIndex < tbarItems.count {
             tabBar.selectedItem = tbarItems[selectedIndex]
         }
-        DispatchQueue.main.async { self.attachContextMenuInteractions() }
+        if #available(iOS 26.0, *) {
+        DispatchQueue.main.async {
+            if #available(iOS 26.0, *) { self.attachContextMenuInteractions() }
+        }
+        }
     }
 
     private func applyTitleColors() {
@@ -225,15 +229,23 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
 
     func setLongPress(enabled: Bool) {
         longPressEnabled = enabled
-        DispatchQueue.main.async { self.attachContextMenuInteractions() }
+        if #available(iOS 26.0, *) {
+        DispatchQueue.main.async {
+            if #available(iOS 26.0, *) { self.attachContextMenuInteractions() }
+        }
+        }
     }
     func setContextMenu(index: Int, items: [ContextItem]) {
         perTabCtx[index] = items
-        DispatchQueue.main.async { self.attachContextMenuInteractions() }
+        DispatchQueue.main.async {
+            if #available(iOS 26.0, *) { self.attachContextMenuInteractions() }
+        }
     }
     func setDefaultContextMenu(items: [ContextItem]) {
         defaultCtx = items
-        DispatchQueue.main.async { self.attachContextMenuInteractions() }
+        DispatchQueue.main.async {
+            if #available(iOS 26.0, *) { self.attachContextMenuInteractions() }
+        }
     }
 
     func setBadge(index: Int, value: String?) {
@@ -267,18 +279,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
     }
 
     private func attachContextMenuInteractions() {
-        guard let items = tabBar.items else { return }
-        for (index, item) in items.enumerated() {
-            guard let view = item.value(forKey: "view") as? UIView else { continue }
-            view.interactions
-                .filter { $0 is UIContextMenuInteraction }
-                .forEach { view.removeInteraction($0) }
-
-            let menuItems = contextMenuItems(for: index)
-            if longPressEnabled, !menuItems.isEmpty {
-                view.addInteraction(UIContextMenuInteraction(delegate: self))
-            }
-        }
+        // no-op; UIKit handles context menu presentation via delegate method.
     }
 
     private func contextMenuItems(for index: Int) -> [ContextItem] {
@@ -286,17 +287,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
         return defaultCtx
     }
 
-    private func tabIndex(for interaction: UIContextMenuInteraction) -> Int? {
-        guard let view = interaction.view, let items = tabBar.items else { return nil }
-        for (idx, item) in items.enumerated() {
-            if let buttonView = item.value(forKey: "view") as? UIView, buttonView === view {
-                return idx
-            }
-        }
-        return nil
-    }
-
-    private func buildMenu(for index: Int, items: [ContextItem]) -> UIMenu {
+private func buildMenu(for index: Int, items: [ContextItem]) -> UIMenu {
         let actions: [UIMenuElement] = items.map { item in
             let image = item.sfSymbol.flatMap { UIImage(systemName: $0) }
             if #available(iOS 15.0, *) {
@@ -314,9 +305,10 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
         return UIMenu(title: "", children: actions)
     }
 
-    // MARK: - UIContextMenuInteractionDelegate
-    func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
-        guard longPressEnabled, let index = tabIndex(for: interaction) else { return nil }
+    // MARK: - UITabBarDelegate (context menu)
+    @available(iOS 26.0, *)
+    func tabBar(_ tabBar: UITabBar, contextMenuConfigurationFor item: UITabBarItem, point: CGPoint) -> UIContextMenuConfiguration? {
+        guard longPressEnabled, let index = item.tagIfAvailable(in: tabBar, items: items) else { return nil }
         let items = contextMenuItems(for: index)
         guard !items.isEmpty else { return nil }
         let route = self.items[index].route
@@ -327,21 +319,6 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIContex
             return self.buildMenu(for: index, items: items)
         }
     }
-
-    func contextMenuInteraction(_ interaction: UIContextMenuInteraction, previewForHighlightingMenuWithConfiguration configuration: UIContextMenuConfiguration) -> UITargetedPreview? {
-        guard let view = interaction.view else { return nil }
-        let parameters = UIPreviewParameters()
-        parameters.backgroundColor = .clear
-        return UITargetedPreview(view: view, parameters: parameters)
-    }
-
-    func contextMenuInteraction(_ interaction: UIContextMenuInteraction, previewForDismissingMenuWithConfiguration configuration: UIContextMenuConfiguration) -> UITargetedPreview? {
-        guard let view = interaction.view else { return nil }
-        let parameters = UIPreviewParameters()
-        parameters.backgroundColor = .clear
-        return UITargetedPreview(view: view, parameters: parameters)
-    }
-
 }
 
 // MARK: - Legacy custom context menu reference
