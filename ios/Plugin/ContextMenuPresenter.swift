@@ -259,7 +259,7 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
                 .scaledBy(x: 0.92, y: 0.92)
         }
 
-        let completion: (UIViewAnimatingPosition) -> Void = { [weak self] _ in
+        let cleanup = { [weak self] in
             self?.stackView?.arrangedSubviews.forEach { $0.removeFromSuperview() }
             self?.stackView = nil
             self?.menuView?.removeFromSuperview()
@@ -284,10 +284,12 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
                 UIView.addKeyframe(withRelativeStartTime: 0.45, relativeDuration: 0.55) {
                     animations()
                 }
-            }, completion: completion)
+            }, completion: { _ in
+                cleanup()
+            })
         } else {
             animations()
-            completion(.end)
+            cleanup()
         }
     }
 
