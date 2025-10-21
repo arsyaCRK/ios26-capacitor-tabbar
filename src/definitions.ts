@@ -15,6 +15,7 @@ export interface TabBarPlugin {
   presentContextMenu(options: { index: number }): Promise<void>;
   setContextMenuTitleColors(options: { light?: HexColor; dark?: HexColor }): Promise<void>;
   setContextMenuSubtitleColors(options: { light?: HexColor; dark?: HexColor }): Promise<void>;
+  setContextMenuBackgroundTint(options: { light?: HexColor; dark?: HexColor }): Promise<void>;
   setUserInterfaceStyle(options: { style: UserInterfaceStyle }): Promise<void>;
   addListener(eventName: 'tabSelected', listenerFunc: (data: { index: number; route: string }) => void): Promise<{ remove: () => void }>;
   addListener(eventName: 'tabReselected', listenerFunc: (data: { index: number; route: string }) => void): Promise<{ remove: () => void }>;

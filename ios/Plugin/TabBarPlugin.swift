@@ -338,7 +338,21 @@ public class TabBarPlugin: CAPPlugin {
     }
   }
 
+  @objc public func setContextMenuBackgroundTint(_ call: CAPPluginCall) {
+    DispatchQueue.main.async {
+      let light = call.getString("light")
+      let dark  = call.getString("dark")
+      self.host?.setContextMenuBackgroundTint(light: light, dark: dark)
+      call.resolve()
+    }
+  }
+
   @objc public func presentContextMenu(_ call: CAPPluginCall) {
-    DispatchQueue.main.async { call.resolve() }
+    DispatchQueue.main.async {
+      let idx = call.getInt("index") ?? -1
+      guard idx >= 0 else { call.reject("index required"); return }
+      self.host?.presentMenu(at: idx)
+      call.resolve()
+    }
   }
 }
