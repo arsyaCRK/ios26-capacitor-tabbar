@@ -282,6 +282,8 @@ await TabBar.setLongPressEnabled({ enabled: true })
 
 > В текущей реализации используется системный `UIContextMenuInteraction`, поэтому внешний вид меню соответствует стандартному меню iOS/iPadOS (цвета и фон определяются системой; методы настройки цветов работают как заглушки).
 
+> Методы `setContextMenuTitleColors`, `setContextMenuSubtitleColors` и `setContextMenuBackgroundTint` пока не влияют на системное меню (оставлены для совместимости).
+
 ```ts
 await TabBar.setContextMenuForIndex({
   index: 1,

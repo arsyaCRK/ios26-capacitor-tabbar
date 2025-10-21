@@ -68,7 +68,6 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate {
             window.overrideUserInterfaceStyle = forcedInterfaceStyle
             trackedWindow = window
         }
-        if #available(iOS 26.0, *) { attachContextMenuInteractions() }
     }
 
     private func applyAppearance() {
@@ -109,19 +108,9 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate {
         applyInterfaceStyle()
     }
 
-    override func viewDidLayoutSubviews() {
-        super.viewDidLayoutSubviews()
-        if #available(iOS 26.0, *) { attachContextMenuInteractions() }
-    }
-
-    override func viewWillDisappear(_ animated: Bool) {
-        super.viewWillDisappear(animated)
-    }
-
     override func traitCollectionDidChange(_ previous: UITraitCollection?) {
         super.traitCollectionDidChange(previous)
         applyTitleColors()
-        if #available(iOS 26.0, *) { attachContextMenuInteractions() }
     }
 
     func configure(tabs: [TabItem], selected: Int) {
@@ -158,9 +147,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate {
             tabBar.selectedItem = tbarItems[selectedIndex]
         }
         if #available(iOS 26.0, *) {
-        DispatchQueue.main.async {
-            if #available(iOS 26.0, *) { self.attachContextMenuInteractions() }
-        }
+            UIContextMenuSystem.shared.setNeedsRebuild()
         }
     }
 
@@ -230,21 +217,19 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate {
     func setLongPress(enabled: Bool) {
         longPressEnabled = enabled
         if #available(iOS 26.0, *) {
-        DispatchQueue.main.async {
-            if #available(iOS 26.0, *) { self.attachContextMenuInteractions() }
-        }
+            DispatchQueue.main.async { UIContextMenuSystem.shared.setNeedsRevalidate() }
         }
     }
     func setContextMenu(index: Int, items: [ContextItem]) {
         perTabCtx[index] = items
-        DispatchQueue.main.async {
-            if #available(iOS 26.0, *) { self.attachContextMenuInteractions() }
+        if #available(iOS 26.0, *) {
+            DispatchQueue.main.async { UIContextMenuSystem.shared.setNeedsRebuild() }
         }
     }
     func setDefaultContextMenu(items: [ContextItem]) {
         defaultCtx = items
-        DispatchQueue.main.async {
-            if #available(iOS 26.0, *) { self.attachContextMenuInteractions() }
+        if #available(iOS 26.0, *) {
+            DispatchQueue.main.async { UIContextMenuSystem.shared.setNeedsRebuild() }
         }
     }
 
@@ -278,16 +263,12 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate {
         onSelect?(idx, route, reselect)
     }
 
-    private func attachContextMenuInteractions() {
-        // no-op; UIKit handles context menu presentation via delegate method.
-    }
-
     private func contextMenuItems(for index: Int) -> [ContextItem] {
         if let tabItems = perTabCtx[index], !tabItems.isEmpty { return tabItems }
         return defaultCtx
     }
 
-private func buildMenu(for index: Int, items: [ContextItem]) -> UIMenu {
+    private func buildMenu(for index: Int, items: [ContextItem]) -> UIMenu {
         let actions: [UIMenuElement] = items.map { item in
             let image = item.sfSymbol.flatMap { UIImage(systemName: $0) }
             if #available(iOS 15.0, *) {
@@ -308,7 +289,10 @@ private func buildMenu(for index: Int, items: [ContextItem]) -> UIMenu {
     // MARK: - UITabBarDelegate (context menu)
     @available(iOS 26.0, *)
     func tabBar(_ tabBar: UITabBar, contextMenuConfigurationFor item: UITabBarItem, point: CGPoint) -> UIContextMenuConfiguration? {
-        guard longPressEnabled, let index = item.tagIfAvailable(in: tabBar, items: items) else { return nil }
+        guard longPressEnabled,
+              let tabItems = tabBar.items,
+              let index = tabItems.firstIndex(of: item),
+              index < self.items.count else { return nil }
         let items = contextMenuItems(for: index)
         guard !items.isEmpty else { return nil }
         let route = self.items[index].route
@@ -328,7 +312,8 @@ private func buildMenu(for index: Int, items: [ContextItem]) -> UIMenu {
      свойства `menuPresenter`, `menuTitleColors`, `menuSubtitleColors`, `menuBackgroundTint`, а также
      `longPressRecognizer`.
    • В `viewDidLoad()` снова добавьте `UILongPressGestureRecognizer` и восстановите методы
-     `handleLongPress(_:)` и `presentMenu(at:)` (см. прежнюю версию файла).
+     `handleLongPress(_:)` и `presentMenu(at:)` (см. прежнюю версию файла), удалив при этом
+     вызовы `UIContextMenuSystem.shared` и метод `tabBar(_:contextMenuConfigurationFor:point:)`.
    • Контроллер `ContextMenuPresenter` всё ещё находится в `ios/Plugin/ContextMenuPresenter.swift` и
      готов к использованию.
   Эти подсказки оставлены, чтобы можно было быстро вернуть предыдущий подход при необходимости.
