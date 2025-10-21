@@ -38,11 +38,11 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
             let base: UIColor
             switch style {
             case .dark:
-                base = UIColor.white.withAlphaComponent(0.22)
+                base = UIColor.white.withAlphaComponent(0.15)
             default:
-                base = UIColor.black.withAlphaComponent(0.1)
+                base = UIColor.black.withAlphaComponent(0.07)
             }
-            cachedHighlightColor = (color?.withAlphaComponent(style == .dark ? 0.32 : 0.16)) ?? base
+            cachedHighlightColor = (color?.withAlphaComponent(style == .dark ? 0.24 : 0.12)) ?? base
             highlightView.backgroundColor = cachedHighlightColor
         }
 
@@ -108,7 +108,7 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
 
         let overlay = UIView(frame: container.bounds)
         overlay.translatesAutoresizingMaskIntoConstraints = false
-        overlay.backgroundColor = style == .dark ? UIColor.black.withAlphaComponent(0.24) : UIColor.black.withAlphaComponent(0.14)
+        overlay.backgroundColor = style == .dark ? UIColor.black.withAlphaComponent(0.2) : UIColor.black.withAlphaComponent(0.1)
         overlay.alpha = 0
         container.addSubview(overlay)
         NSLayoutConstraint.activate([
@@ -137,13 +137,13 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
         blur.contentView.layer.cornerRadius = 18
         blur.contentView.layer.cornerCurve = .continuous
         blur.contentView.clipsToBounds = true
-        let glassTint = style == .dark ? UIColor.white.withAlphaComponent(0.05) : UIColor.white.withAlphaComponent(0.12)
+        let glassTint = style == .dark ? UIColor.white.withAlphaComponent(0.025) : UIColor.white.withAlphaComponent(0.075)
         blur.contentView.backgroundColor = glassTint
 
         let menuContainer = UIView()
         menuContainer.translatesAutoresizingMaskIntoConstraints = false
         menuContainer.backgroundColor = .clear
-        menuContainer.layer.shadowColor = UIColor.black.withAlphaComponent(style == .dark ? 0.5 : 0.3).cgColor
+        menuContainer.layer.shadowColor = UIColor.black.withAlphaComponent(style == .dark ? 0.4 : 0.25).cgColor
         menuContainer.layer.shadowOpacity = 1
         menuContainer.layer.shadowOffset = CGSize(width: 0, height: 18)
         menuContainer.layer.shadowRadius = 32
@@ -163,14 +163,14 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
         let border = CALayer()
         border.cornerRadius = 18
         border.borderWidth = 1.0
-        border.borderColor = UIColor.white.withAlphaComponent(style == .dark ? 0.26 : 0.32).cgColor
+        border.borderColor = UIColor.white.withAlphaComponent(style == .dark ? 0.2 : 0.26).cgColor
         blur.layer.addSublayer(border)
         borderLayer = border
 
         let inner = CALayer()
         inner.cornerRadius = 17.5
         inner.borderWidth = 0.5
-        inner.borderColor = UIColor.white.withAlphaComponent(style == .dark ? 0.18 : 0.24).cgColor
+        inner.borderColor = UIColor.white.withAlphaComponent(style == .dark ? 0.12 : 0.18).cgColor
         blur.contentView.layer.addSublayer(inner)
         innerBorderLayer = inner
 
@@ -301,16 +301,16 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
         }
 
         if let border = borderLayer {
-            border.borderColor = UIColor.white.withAlphaComponent(style == .dark ? 0.26 : 0.32).cgColor
+            border.borderColor = UIColor.white.withAlphaComponent(style == .dark ? 0.2 : 0.26).cgColor
         }
 
         if let inner = innerBorderLayer {
-            inner.borderColor = UIColor.white.withAlphaComponent(style == .dark ? 0.18 : 0.24).cgColor
+            inner.borderColor = UIColor.white.withAlphaComponent(style == .dark ? 0.12 : 0.18).cgColor
         }
 
-        overlayView?.backgroundColor = style == .dark ? UIColor.black.withAlphaComponent(0.24) : UIColor.black.withAlphaComponent(0.14)
-        menuView?.layer.shadowColor = UIColor.black.withAlphaComponent(style == .dark ? 0.5 : 0.3).cgColor
-        blurView?.contentView.backgroundColor = style == .dark ? UIColor.white.withAlphaComponent(0.05) : UIColor.white.withAlphaComponent(0.12)
+        overlayView?.backgroundColor = style == .dark ? UIColor.black.withAlphaComponent(0.2) : UIColor.black.withAlphaComponent(0.1)
+        menuView?.layer.shadowColor = UIColor.black.withAlphaComponent(style == .dark ? 0.4 : 0.25).cgColor
+        blurView?.contentView.backgroundColor = style == .dark ? UIColor.white.withAlphaComponent(0.025) : UIColor.white.withAlphaComponent(0.075)
         blurView?.layer.cornerRadius = 18
         blurView?.layer.cornerCurve = .continuous
         blurView?.contentView.layer.cornerRadius = 18

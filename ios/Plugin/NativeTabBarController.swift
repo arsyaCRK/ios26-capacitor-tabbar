@@ -131,7 +131,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         ])
 
         let recognizer = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
-        recognizer.minimumPressDuration = 0.5
+        recognizer.minimumPressDuration = 0.33
         recognizer.allowableMovement = 20
         recognizer.cancelsTouchesInView = false
         recognizer.delegate = self
@@ -198,7 +198,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         let targetIndex = forcedIndex ?? selectedIndex
         let resolvedIndex: Int? = items.isEmpty ? nil : max(0, min(targetIndex, items.count - 1))
         let titleColor = resolveColor(from: menuTitleColors, style: style) ?? (style == .dark ? UIColor.white : UIColor.black)
-        let subtitleColor = resolveColor(from: menuSubtitleColors, style: style) ?? (style == .dark ? UIColor.white.withAlphaComponent(0.72) : UIColor.black.withAlphaComponent(0.62))
+        let subtitleColor = resolveColor(from: menuSubtitleColors, style: style) ?? (style == .dark ? UIColor.white.withAlphaComponent(0.6) : UIColor.black.withAlphaComponent(0.6))
         let highlightBase: String?
         if let index = resolvedIndex {
             highlightBase = perTabColors[index]?.selected ?? globalColors.selected
@@ -343,7 +343,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
 
         let style = effectiveInterfaceStyle()
         let titleColor = resolveColor(from: menuTitleColors, style: style) ?? (style == .dark ? UIColor.white : UIColor.black)
-        let subtitleColor = resolveColor(from: menuSubtitleColors, style: style) ?? (style == .dark ? UIColor.white.withAlphaComponent(0.72) : UIColor.black.withAlphaComponent(0.62))
+        let subtitleColor = resolveColor(from: menuSubtitleColors, style: style) ?? (style == .dark ? UIColor.white.withAlphaComponent(0.6) : UIColor.black.withAlphaComponent(0.6))
         let highlightColor = HexUtil.color(perTabColors[index]?.selected ?? globalColors.selected) ?? (style == .dark ? UIColor.systemBlue : UIColor.systemBlue)
 
         menuPresenter.present(over: hostView,
