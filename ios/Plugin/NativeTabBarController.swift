@@ -362,7 +362,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
                               tabBar: tabBar,
                               items: menuItems,
                               tabIndex: index,
-                              route: route,
+                              route,
                               style: style,
                               titleColor: titleColor,
                               subtitleColor: subtitleColor,
