@@ -63,6 +63,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
     private var longPressRecognizer: UILongPressGestureRecognizer?
     private var menuTitleColors = MenuColorSet(light: nil, dark: nil)
     private var menuSubtitleColors = MenuColorSet(light: nil, dark: nil)
+    private var menuBackgroundTint = MenuColorSet(light: nil, dark: nil)
 
     private func indexForLocation(_ location: CGPoint) -> Int? {
         guard let items = tabBar.items, !items.isEmpty else { return nil }
@@ -193,6 +194,11 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         refreshMenuPresenterTheme()
     }
 
+    func setContextMenuBackgroundTint(light: String?, dark: String?) {
+        menuBackgroundTint = MenuColorSet(light: light, dark: dark)
+        refreshMenuPresenterTheme()
+    }
+
     private func refreshMenuPresenterTheme(forcedIndex: Int? = nil) {
         let style = effectiveInterfaceStyle()
         let targetIndex = forcedIndex ?? selectedIndex
@@ -206,7 +212,8 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
             highlightBase = globalColors.selected
         }
         let highlightColor = HexUtil.color(highlightBase) ?? (style == .dark ? UIColor.systemBlue : UIColor.systemBlue)
-        menuPresenter.updateColors(style: style, titleColor: titleColor, subtitleColor: subtitleColor, highlightColor: highlightColor)
+        let backgroundBase = resolveColor(from: menuBackgroundTint, style: style)
+        menuPresenter.updateColors(style: style, titleColor: titleColor, subtitleColor: subtitleColor, highlightColor: highlightColor, backgroundColor: backgroundBase)
     }
 
     private func rebuildItems() {
@@ -345,6 +352,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         let titleColor = resolveColor(from: menuTitleColors, style: style) ?? (style == .dark ? UIColor.white : UIColor.black)
         let subtitleColor = resolveColor(from: menuSubtitleColors, style: style) ?? (style == .dark ? UIColor.white.withAlphaComponent(0.6) : UIColor.black.withAlphaComponent(0.6))
         let highlightColor = HexUtil.color(perTabColors[index]?.selected ?? globalColors.selected) ?? (style == .dark ? UIColor.systemBlue : UIColor.systemBlue)
+        let backgroundBase = resolveColor(from: menuBackgroundTint, style: style)
 
         menuPresenter.present(over: hostView,
                               tabBar: tabBar,
@@ -354,7 +362,8 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
                               style: style,
                               titleColor: titleColor,
                               subtitleColor: subtitleColor,
-                              highlightColor: highlightColor) { [weak self] itemId in
+                              highlightColor: highlightColor,
+                              backgroundColor: backgroundBase) { [weak self] itemId in
             self?.onContextItem?(index, itemId)
         }
     }

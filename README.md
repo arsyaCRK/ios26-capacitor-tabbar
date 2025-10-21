@@ -292,6 +292,41 @@ await TabBar.setContextMenuForIndex({
 
 ---
 
+### `setContextMenuTitleColors({ light, dark }: { light?: string; dark?: string }): Promise<void>`
+
+Задаёт цвета текста пунктов контекстного меню для светлой и тёмной темы.
+
+```ts
+await TabBar.setContextMenuTitleColors({
+  light: '#000000',
+  dark: '#FFFFFF'
+})
+```
+
+### `setContextMenuSubtitleColors({ light, dark }: { light?: string; dark?: string }): Promise<void>`
+
+Настраивает цвета подзаголовков (subtitle) пунктов контекстного меню.
+
+```ts
+await TabBar.setContextMenuSubtitleColors({
+  light: '#6B7280',
+  dark: '#B3B9C9'
+})
+```
+
+### `setContextMenuBackgroundTint({ light, dark }: { light?: string; dark?: string }): Promise<void>`
+
+Изменяет базовый тон стеклянного фона контекстного меню. Альфа-канал применяется автоматически.
+
+```ts
+await TabBar.setContextMenuBackgroundTint({
+  light: '#FFFFFF',
+  dark: '#0A84FF'
+})
+```
+
+---
+
 ### `presentContextMenu({ index }: { index: number }): Promise<void>`
 
 (Заглушка на iOS; меню показывается системой по LongPress автоматически. Метод оставлен для совместимости и будущих сценариев).

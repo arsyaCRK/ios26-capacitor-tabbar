@@ -12,6 +12,9 @@ export interface TabBarPlugin {
   setLayout(options: { position?: 'absolute'|'safe-area'; bottomInset?: number; sideInset?: number }): Promise<void>;
   setBottomOffset(options: { bottomInset: number; position?: 'absolute'|'safe-area' }): Promise<void>;
   presentContextMenu(options: { index: number }): Promise<void>;
+  setContextMenuTitleColors(options: { light?: HexColor; dark?: HexColor }): Promise<void>;
+  setContextMenuSubtitleColors(options: { light?: HexColor; dark?: HexColor }): Promise<void>;
+  setContextMenuBackgroundTint(options: { light?: HexColor; dark?: HexColor }): Promise<void>;
   addListener(eventName: 'tabSelected', listenerFunc: (data: { index: number; route: string }) => void): Promise<{ remove: () => void }>;
   addListener(eventName: 'tabReselected', listenerFunc: (data: { index: number; route: string }) => void): Promise<{ remove: () => void }>;
   addListener(eventName: 'tabLongPress', listenerFunc: (data: { index: number; route: string }) => void): Promise<{ remove: () => void }>;

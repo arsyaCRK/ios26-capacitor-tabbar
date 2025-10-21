@@ -4,7 +4,7 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
 
     private final class MenuRowControl: UIControl {
         private let highlightView = UIView()
-        private var cachedHighlightColor: UIColor = UIColor.white.withAlphaComponent(0.22)
+        private var cachedHighlightColor: UIColor = UIColor.white.withAlphaComponent(0.15)
 
         override init(frame: CGRect) {
             super.init(frame: frame)
@@ -79,6 +79,7 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
     private var currentStyle: UIUserInterfaceStyle = .unspecified
     private var titleColor: UIColor = .label
     private var subtitleColor: UIColor = .secondaryLabel
+    private var backgroundTint: UIColor?
     private let menuWidth: CGFloat = 220
     private let itemHeight: CGFloat = 52
 
@@ -91,6 +92,7 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
                  titleColor: UIColor,
                  subtitleColor: UIColor,
                  highlightColor: UIColor?,
+                 backgroundColor: UIColor?,
                  onSelect: @escaping (String) -> Void) {
         dismiss(animated: false)
 
@@ -108,7 +110,7 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
 
         let overlay = UIView(frame: container.bounds)
         overlay.translatesAutoresizingMaskIntoConstraints = false
-        overlay.backgroundColor = style == .dark ? UIColor.black.withAlphaComponent(0.2) : UIColor.black.withAlphaComponent(0.1)
+        overlay.backgroundColor = style == .dark ? UIColor.black.withAlphaComponent(0.12) : UIColor.black.withAlphaComponent(0.06)
         overlay.alpha = 0
         container.addSubview(overlay)
         NSLayoutConstraint.activate([
@@ -137,13 +139,13 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
         blur.contentView.layer.cornerRadius = 18
         blur.contentView.layer.cornerCurve = .continuous
         blur.contentView.clipsToBounds = true
-        let glassTint = style == .dark ? UIColor.white.withAlphaComponent(0.025) : UIColor.white.withAlphaComponent(0.075)
-        blur.contentView.backgroundColor = glassTint
+        backgroundTint = backgroundColor
+        blur.contentView.backgroundColor = resolvedBackgroundColor(for: style)
 
         let menuContainer = UIView()
         menuContainer.translatesAutoresizingMaskIntoConstraints = false
         menuContainer.backgroundColor = .clear
-        menuContainer.layer.shadowColor = UIColor.black.withAlphaComponent(style == .dark ? 0.4 : 0.25).cgColor
+        menuContainer.layer.shadowColor = UIColor.black.withAlphaComponent(style == .dark ? 0.28 : 0.18).cgColor
         menuContainer.layer.shadowOpacity = 1
         menuContainer.layer.shadowOffset = CGSize(width: 0, height: 18)
         menuContainer.layer.shadowRadius = 32
@@ -163,14 +165,14 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
         let border = CALayer()
         border.cornerRadius = 18
         border.borderWidth = 1.0
-        border.borderColor = UIColor.white.withAlphaComponent(style == .dark ? 0.2 : 0.26).cgColor
+        border.borderColor = UIColor.white.withAlphaComponent(style == .dark ? 0.16 : 0.22).cgColor
         blur.layer.addSublayer(border)
         borderLayer = border
 
         let inner = CALayer()
         inner.cornerRadius = 17.5
         inner.borderWidth = 0.5
-        inner.borderColor = UIColor.white.withAlphaComponent(style == .dark ? 0.12 : 0.18).cgColor
+        inner.borderColor = UIColor.white.withAlphaComponent(style == .dark ? 0.08 : 0.14).cgColor
         blur.contentView.layer.addSublayer(inner)
         innerBorderLayer = inner
 
@@ -268,6 +270,7 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
             self?.currentItems = []
             self?.currentIndex = nil
             self?.rowComponents = []
+            self?.backgroundTint = nil
         }
 
         if animated {
@@ -288,10 +291,11 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
         }
     }
 
-    func updateColors(style: UIUserInterfaceStyle, titleColor: UIColor, subtitleColor: UIColor, highlightColor: UIColor?) {
+    func updateColors(style: UIUserInterfaceStyle, titleColor: UIColor, subtitleColor: UIColor, highlightColor: UIColor?, backgroundColor: UIColor?) {
         currentStyle = style
         self.titleColor = titleColor
         self.subtitleColor = subtitleColor
+        backgroundTint = backgroundColor
 
         rowComponents.forEach { row in
             row.control.configureHighlight(color: highlightColor, style: style)
@@ -301,16 +305,16 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
         }
 
         if let border = borderLayer {
-            border.borderColor = UIColor.white.withAlphaComponent(style == .dark ? 0.2 : 0.26).cgColor
+            border.borderColor = UIColor.white.withAlphaComponent(style == .dark ? 0.16 : 0.22).cgColor
         }
 
         if let inner = innerBorderLayer {
-            inner.borderColor = UIColor.white.withAlphaComponent(style == .dark ? 0.12 : 0.18).cgColor
+            inner.borderColor = UIColor.white.withAlphaComponent(style == .dark ? 0.08 : 0.14).cgColor
         }
 
-        overlayView?.backgroundColor = style == .dark ? UIColor.black.withAlphaComponent(0.2) : UIColor.black.withAlphaComponent(0.1)
-        menuView?.layer.shadowColor = UIColor.black.withAlphaComponent(style == .dark ? 0.4 : 0.25).cgColor
-        blurView?.contentView.backgroundColor = style == .dark ? UIColor.white.withAlphaComponent(0.025) : UIColor.white.withAlphaComponent(0.075)
+        overlayView?.backgroundColor = style == .dark ? UIColor.black.withAlphaComponent(0.12) : UIColor.black.withAlphaComponent(0.06)
+        menuView?.layer.shadowColor = UIColor.black.withAlphaComponent(style == .dark ? 0.28 : 0.18).cgColor
+        blurView?.contentView.backgroundColor = resolvedBackgroundColor(for: style)
         blurView?.layer.cornerRadius = 18
         blurView?.layer.cornerCurve = .continuous
         blurView?.contentView.layer.cornerRadius = 18
@@ -345,23 +349,15 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
             row.accessibilityValue = nil
         }
 
-        let thinStyle: UIBlurEffect.Style
-        if #available(iOS 15.0, *) {
-            thinStyle = style == .dark ? .systemUltraThinMaterialDark : .systemUltraThinMaterialLight
-        } else {
-            thinStyle = .systemThinMaterial
-        }
-        let effect = UIVibrancyEffect(blurEffect: UIBlurEffect(style: thinStyle), style: .fill)
-        let vibrancyView = UIVisualEffectView(effect: effect)
-        vibrancyView.translatesAutoresizingMaskIntoConstraints = false
-        vibrancyView.isUserInteractionEnabled = false
-        row.addSubview(vibrancyView)
-        vibrancyView.contentView.isUserInteractionEnabled = false
+        let contentView = UIView()
+        contentView.translatesAutoresizingMaskIntoConstraints = false
+        contentView.isUserInteractionEnabled = false
+        row.addSubview(contentView)
         NSLayoutConstraint.activate([
-            vibrancyView.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 12),
-            vibrancyView.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -12),
-            vibrancyView.topAnchor.constraint(equalTo: row.topAnchor),
-            vibrancyView.bottomAnchor.constraint(equalTo: row.bottomAnchor)
+            contentView.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 12),
+            contentView.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -12),
+            contentView.topAnchor.constraint(equalTo: row.topAnchor),
+            contentView.bottomAnchor.constraint(equalTo: row.bottomAnchor)
         ])
 
         let stack = UIStackView()
@@ -416,12 +412,12 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
         }
 
         stack.addArrangedSubview(labelsStack)
-        vibrancyView.contentView.addSubview(stack)
+        contentView.addSubview(stack)
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: vibrancyView.contentView.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: vibrancyView.contentView.trailingAnchor),
-            stack.topAnchor.constraint(equalTo: vibrancyView.contentView.topAnchor),
-            stack.bottomAnchor.constraint(equalTo: vibrancyView.contentView.bottomAnchor)
+            stack.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            stack.topAnchor.constraint(equalTo: contentView.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
         ])
 
         row.layer.setValue(item.id, forKey: "ctxItemId")
@@ -464,6 +460,14 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
         guard let itemId = sender.layer.value(forKey: "ctxItemId") as? String else { return }
         selectionHandler?(itemId)
         dismiss()
+    }
+
+    private func resolvedBackgroundColor(for style: UIUserInterfaceStyle) -> UIColor {
+        if let tint = backgroundTint {
+            let alpha: CGFloat = style == .dark ? 0.1 : 0.08
+            return tint.withAlphaComponent(alpha)
+        }
+        return style == .dark ? UIColor.white.withAlphaComponent(0.015) : UIColor.white.withAlphaComponent(0.05)
     }
 
     private func updateGlassLayers() {
