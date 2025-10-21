@@ -37,6 +37,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
     }
     struct ContextItem { let id: String; let title: String; let subtitle: String?; let sfSymbol: String? }
     struct TabItem { let title: String; let sfSymbol: String; let route: String; let badge: String?; var iconColors: IconColors?; var ctxItems: [ContextItem]?; var titlePalette: TitlePalette? }
+    struct MenuColorSet { var light: String?; var dark: String? }
 
     var onSelect: ((Int, String, Bool) -> Void)?
     var onLongPress: ((Int, String) -> Void)?
@@ -60,6 +61,8 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
     private weak var trackedWindow: UIWindow?
     private lazy var menuPresenter = ContextMenuPresenter()
     private var longPressRecognizer: UILongPressGestureRecognizer?
+    private var menuTitleColors = MenuColorSet(light: nil, dark: nil)
+    private var menuSubtitleColors = MenuColorSet(light: nil, dark: nil)
 
     private func indexForLocation(_ location: CGPoint) -> Int? {
         guard let items = tabBar.items, !items.isEmpty else { return nil }
@@ -92,6 +95,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
             window.overrideUserInterfaceStyle = forcedInterfaceStyle
             trackedWindow = window
         }
+        refreshMenuPresenterTheme()
     }
 
     private func applyAppearance() {
@@ -148,6 +152,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
     override func traitCollectionDidChange(_ previous: UITraitCollection?) {
         super.traitCollectionDidChange(previous)
         applyTitleColors()
+        refreshMenuPresenterTheme()
     }
 
     func configure(tabs: [TabItem], selected: Int) {
@@ -162,6 +167,58 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         menuPresenter.dismiss(animated: false)
         rebuildItems()
         applyTitleColors()
+    }
+
+    private func effectiveInterfaceStyle() -> UIUserInterfaceStyle {
+        let style = forcedInterfaceStyle == .unspecified ? traitCollection.userInterfaceStyle : forcedInterfaceStyle
+        return style
+    }
+
+    private func resolveColor(from set: MenuColorSet, style: UIUserInterfaceStyle) -> UIColor? {
+        switch style {
+        case .dark:
+            return HexUtil.color(set.dark)
+        default:
+            return HexUtil.color(set.light)
+        }
+    }
+
+    private func fallbackTitleColor(for index: Int, style: UIUserInterfaceStyle) -> UIColor? {
+        let palette = perTabTitles[index] ?? globalTitles
+        let pick: String?
+        if style == .dark {
+            pick = palette.darkNormal ?? palette.darkSelected ?? palette.darkDisabled
+        } else {
+            pick = palette.lightNormal ?? palette.lightSelected ?? palette.lightDisabled
+        }
+        return HexUtil.color(pick) ?? UIColor.label
+    }
+
+    func setContextMenuTitleColors(light: String?, dark: String?) {
+        menuTitleColors = MenuColorSet(light: light, dark: dark)
+        refreshMenuPresenterTheme()
+    }
+
+    func setContextMenuSubtitleColors(light: String?, dark: String?) {
+        menuSubtitleColors = MenuColorSet(light: light, dark: dark)
+        refreshMenuPresenterTheme()
+    }
+
+    private func refreshMenuPresenterTheme(forcedIndex: Int? = nil) {
+        let style = effectiveInterfaceStyle()
+        let targetIndex = forcedIndex ?? selectedIndex
+        let resolvedIndex: Int? = items.isEmpty ? nil : max(0, min(targetIndex, items.count - 1))
+        let fallbackTitle = resolvedIndex.flatMap { fallbackTitleColor(for: $0, style: style) } ?? UIColor.label
+        let titleColor = resolveColor(from: menuTitleColors, style: style) ?? fallbackTitle
+        let subtitleColor = resolveColor(from: menuSubtitleColors, style: style) ?? UIColor.secondaryLabel
+        let highlightBase: String?
+        if let index = resolvedIndex {
+            highlightBase = perTabColors[index]?.selected ?? globalColors.selected
+        } else {
+            highlightBase = globalColors.selected
+        }
+        let highlightColor = HexUtil.color(highlightBase) ?? (style == .dark ? UIColor.systemBlue : UIColor.systemBlue)
+        menuPresenter.updateColors(style: style, titleColor: titleColor, subtitleColor: subtitleColor, highlightColor: highlightColor)
     }
 
     private func rebuildItems() {
@@ -296,11 +353,20 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
 
         guard let hostView = view.window ?? view.superview ?? view else { return }
 
+        let style = effectiveInterfaceStyle()
+        let titleColor = resolveColor(from: menuTitleColors, style: style) ?? fallbackTitleColor(for: index, style: style) ?? UIColor.label
+        let subtitleColor = resolveColor(from: menuSubtitleColors, style: style) ?? UIColor.secondaryLabel
+        let highlightColor = HexUtil.color(perTabColors[index]?.selected ?? globalColors.selected) ?? (style == .dark ? UIColor.systemBlue : UIColor.systemBlue)
+
         menuPresenter.present(over: hostView,
                               tabBar: tabBar,
                               items: menuItems,
                               tabIndex: index,
-                              route: route) { [weak self] itemId in
+                              route: route,
+                              style: style,
+                              titleColor: titleColor,
+                              subtitleColor: subtitleColor,
+                              highlightColor: highlightColor) { [weak self] itemId in
             self?.onContextItem?(index, itemId)
         }
     }

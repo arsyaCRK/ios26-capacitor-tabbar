@@ -320,6 +320,24 @@ public class TabBarPlugin: CAPPlugin {
     }
   }
 
+  @objc public func setContextMenuTitleColors(_ call: CAPPluginCall) {
+    DispatchQueue.main.async {
+      let light = call.getString("light")
+      let dark  = call.getString("dark")
+      self.host?.setContextMenuTitleColors(light: light, dark: dark)
+      call.resolve()
+    }
+  }
+
+  @objc public func setContextMenuSubtitleColors(_ call: CAPPluginCall) {
+    DispatchQueue.main.async {
+      let light = call.getString("light")
+      let dark  = call.getString("dark")
+      self.host?.setContextMenuSubtitleColors(light: light, dark: dark)
+      call.resolve()
+    }
+  }
+
   @objc public func presentContextMenu(_ call: CAPPluginCall) {
     DispatchQueue.main.async {
       let idx = call.getInt("index") ?? -1
