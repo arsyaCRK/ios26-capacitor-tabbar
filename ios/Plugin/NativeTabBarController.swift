@@ -290,9 +290,9 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate {
     @available(iOS 26.0, *)
     func tabBar(_ tabBar: UITabBar, contextMenuConfigurationFor item: UITabBarItem, point: CGPoint) -> UIContextMenuConfiguration? {
         guard longPressEnabled,
-              let tabItems = tabBar.items,
-              let index = tabItems.firstIndex(of: item),
-              index < self.items.count else { return nil }
+              item.tag >= 0,
+              item.tag < self.items.count else { return nil }
+        let index = item.tag
         let items = contextMenuItems(for: index)
         guard !items.isEmpty else { return nil }
         let route = self.items[index].route
