@@ -60,33 +60,10 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
     private var forcedInterfaceStyle: UIUserInterfaceStyle = .unspecified
     private weak var trackedWindow: UIWindow?
     private lazy var menuPresenter = ContextMenuPresenter()
-    private var longPressRecognizer: UILongPressGestureRecognizer?
+    private var buttonLongPressRecognizers: [UILongPressGestureRecognizer] = []
     private var menuTitleColors = MenuColorSet(light: nil, dark: nil)
     private var menuSubtitleColors = MenuColorSet(light: nil, dark: nil)
     private var menuBackgroundTint = MenuColorSet(light: nil, dark: nil)
-
-    private func indexForLocation(_ location: CGPoint) -> Int? {
-        guard let items = tabBar.items, !items.isEmpty else { return nil }
-        tabBar.layoutIfNeeded()
-        for (idx, item) in items.enumerated() {
-            if let view = item.value(forKey: "view") as? UIView {
-                if view.frame.contains(location) {
-                    return idx
-                }
-            }
-        }
-        let nearest = items.enumerated().compactMap { (idx, item) -> (Int, CGFloat)? in
-            guard let view = item.value(forKey: "view") as? UIView else { return nil }
-            let distance = abs(view.center.x - location.x)
-            return (idx, distance)
-        }.min(by: { $0.1 < $1.1 })?.0
-        if let nearest = nearest {
-            return nearest
-        }
-        let width = max(tabBar.bounds.width, 1)
-        let raw = Int((location.x / width) * CGFloat(items.count))
-        return max(0, min(items.count - 1, raw))
-    }
 
     private func applyInterfaceStyle() {
         overrideUserInterfaceStyle = forcedInterfaceStyle
@@ -130,19 +107,17 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
             tabBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             tabBar.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
-
-        let recognizer = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
-        recognizer.minimumPressDuration = 0.5
-        recognizer.allowableMovement = 20
-        recognizer.cancelsTouchesInView = false
-        recognizer.delegate = self
-        tabBar.addGestureRecognizer(recognizer)
-        self.longPressRecognizer = recognizer
+        DispatchQueue.main.async { self.refreshLongPressRecognizers() }
     }
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         applyInterfaceStyle()
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        DispatchQueue.main.async { self.refreshLongPressRecognizers() }
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -307,7 +282,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
 
     func setLongPress(enabled: Bool) {
         longPressEnabled = enabled
-        longPressRecognizer?.isEnabled = enabled
+        buttonLongPressRecognizers.forEach { $0.isEnabled = enabled }
         if !enabled {
             menuPresenter.dismiss(animated: false)
         }
@@ -332,6 +307,34 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         rebuildItems()
     }
 
+    private func refreshLongPressRecognizers() {
+        buttonLongPressRecognizers.forEach { recognizer in
+            recognizer.view?.removeGestureRecognizer(recognizer)
+        }
+        buttonLongPressRecognizers.removeAll()
+
+        guard let tabBarItems = tabBar.items else { return }
+        for (index, item) in tabBarItems.enumerated() {
+            guard let buttonView = item.value(forKey: "view") as? UIView else { continue }
+            buttonView.tag = index
+
+            let recognizer = UILongPressGestureRecognizer(target: self, action: #selector(handleButtonLongPress(_:)))
+            recognizer.minimumPressDuration = 0.33
+            recognizer.allowableMovement = 20
+            recognizer.cancelsTouchesInView = false
+            recognizer.delegate = self
+            recognizer.isEnabled = longPressEnabled
+            buttonView.addGestureRecognizer(recognizer)
+            buttonLongPressRecognizers.append(recognizer)
+        }
+    }
+
+    @objc private func handleButtonLongPress(_ recognizer: UILongPressGestureRecognizer) {
+        guard longPressEnabled, recognizer.state == .began else { return }
+        guard let index = recognizer.view?.tag, index >= 0 else { return }
+        presentMenu(at: index)
+    }
+
     @discardableResult
     func select(index: Int) -> Bool {
         guard let items = tabBar.items, index >= 0, index < items.count else { return false }
@@ -340,14 +343,6 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         selectedIndex = index
         onSelect?(index, self.items[index].route, reselection)
         return true
-    }
-
-    // MARK: - Long press menus
-    @objc private func handleLongPress(_ recognizer: UILongPressGestureRecognizer) {
-        guard longPressEnabled, recognizer.state == .began else { return }
-        let point = recognizer.location(in: tabBar)
-        guard let idx = indexForLocation(point) else { return }
-        presentMenu(at: idx)
     }
 
     func presentMenu(at index: Int) {
