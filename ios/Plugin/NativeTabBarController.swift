@@ -66,6 +66,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
     private var menuBackgroundTint = MenuColorSet(light: nil, dark: nil)
     private var tabBarLocked = false
     private var refreshRetryWorkItem: DispatchWorkItem?
+    private var cachedItemEnabledStates: [Int: Bool] = [:]
 
     private func applyInterfaceStyle() {
         overrideUserInterfaceStyle = forcedInterfaceStyle
@@ -244,6 +245,9 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         if selectedIndex >= 0 && selectedIndex < tbarItems.count {
             tabBar.selectedItem = tbarItems[selectedIndex]
         }
+        if tabBarLocked {
+            tabBar.items?.forEach { $0.isEnabled = false }
+        }
         DispatchQueue.main.async { [weak self] in self?.refreshLongPressRecognizers() }
     }
 
@@ -319,7 +323,22 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         tabBarLocked = locked
         tabBar.isUserInteractionEnabled = !locked
         if locked {
+            cachedItemEnabledStates.removeAll()
+            tabBar.items?.enumerated().forEach { index, item in
+                cachedItemEnabledStates[index] = item.isEnabled
+                item.isEnabled = false
+            }
             menuPresenter.dismiss(animated: false)
+        }
+        if !locked {
+            tabBar.items?.enumerated().forEach { index, item in
+                if let previous = cachedItemEnabledStates[index] {
+                    item.isEnabled = previous
+                } else {
+                    item.isEnabled = true
+                }
+            }
+            cachedItemEnabledStates.removeAll()
         }
         updateLongPressRecognizerStates()
         if !locked {
