@@ -129,6 +129,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         super.traitCollectionDidChange(previous)
         applyTitleColors()
         refreshMenuPresenterTheme()
+        DispatchQueue.main.async { self.refreshLongPressRecognizers() }
     }
 
     func configure(tabs: [TabItem], selected: Int) {
@@ -286,6 +287,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         if !enabled {
             menuPresenter.dismiss(animated: false)
         }
+        DispatchQueue.main.async { self.refreshLongPressRecognizers() }
     }
     func setContextMenu(index: Int, items: [ContextItem]) { perTabCtx[index] = items }
     func setDefaultContextMenu(items: [ContextItem]) {
@@ -313,18 +315,39 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         }
         buttonLongPressRecognizers.removeAll()
 
-        guard let tabBarItems = tabBar.items else { return }
-        for (index, item) in tabBarItems.enumerated() {
-            guard let buttonView = item.value(forKey: "view") as? UIView else { continue }
-            buttonView.tag = index
+        tabBar.layoutIfNeeded()
 
+        guard let tabItems = tabBar.items else { return }
+        var mapping: [(UIView, Int)] = []
+
+        for (index, item) in tabItems.enumerated() {
+            if let view = item.value(forKey: "view") as? UIView {
+                mapping.append((view, index))
+            }
+        }
+
+        if mapping.count != tabItems.count {
+            if let buttonClass = NSClassFromString("UITabBarButton") {
+                let buttonViews = tabBar.subviews
+                    .filter { $0.isKind(of: buttonClass) }
+                    .sorted { $0.frame.minX < $1.frame.minX }
+                if buttonViews.count == tabItems.count {
+                    mapping = buttonViews.enumerated().map { ($0.element, $0.offset) }
+                }
+            }
+        }
+
+        guard !mapping.isEmpty else { return }
+
+        for (view, index) in mapping {
+            view.tag = index
             let recognizer = UILongPressGestureRecognizer(target: self, action: #selector(handleButtonLongPress(_:)))
             recognizer.minimumPressDuration = 0.33
             recognizer.allowableMovement = 20
             recognizer.cancelsTouchesInView = false
             recognizer.delegate = self
             recognizer.isEnabled = longPressEnabled
-            buttonView.addGestureRecognizer(recognizer)
+            view.addGestureRecognizer(recognizer)
             buttonLongPressRecognizers.append(recognizer)
         }
     }
