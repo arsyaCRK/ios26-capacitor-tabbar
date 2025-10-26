@@ -303,6 +303,20 @@ public class TabBarPlugin: CAPPlugin {
     }
   }
 
+  @objc public func lockTabBar(_ call: CAPPluginCall) {
+    DispatchQueue.main.async {
+      self.host?.setTabBarLocked(true)
+      call.resolve()
+    }
+  }
+
+  @objc public func unlockTabBar(_ call: CAPPluginCall) {
+    DispatchQueue.main.async {
+      self.host?.setTabBarLocked(false)
+      call.resolve()
+    }
+  }
+
   @objc public func setContextMenuForIndex(_ call: CAPPluginCall) {
     DispatchQueue.main.async {
       let idx = call.getInt("index") ?? -1

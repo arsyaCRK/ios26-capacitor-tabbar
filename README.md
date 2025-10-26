@@ -276,6 +276,24 @@ await TabBar.setLongPressEnabled({ enabled: true })
 
 ---
 
+### `lockTabBar(): Promise<void>`
+
+Полностью блокирует взаимодействие пользователя с таббаром и его контекстными меню (тапы и долгие нажатия игнорируются до разблокировки).
+
+```ts
+await TabBar.lockTabBar()
+```
+
+### `unlockTabBar(): Promise<void>`
+
+Снимает блокировку, возвращая возможность тапать по вкладкам и вызывать контекстное меню.
+
+```ts
+await TabBar.unlockTabBar()
+```
+
+---
+
 ### `setContextMenuForIndex({ index, items }: { index: number; items: ContextMenuItem[] }): Promise<void>`
 
 Назначает **контекстное меню** только для указанного таба (перекрывает `defaultItems` из `show`).

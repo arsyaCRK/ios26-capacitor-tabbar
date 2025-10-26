@@ -9,7 +9,8 @@ export interface TabBarPlugin {
   show(options: ShowOptions): Promise<void>; hide(): Promise<void>; select(options: { index: number }): Promise<void>; setBadge(options: { index: number; value?: string }): Promise<void>;
   setIconColors(options: IconColors): Promise<void>; setTabIconColors(options: IconColors & { index: number }): Promise<void>;
   setTitleColors(options: TitleColors): Promise<void>; setTabTitleColors(options: TitleColors & { index: number }): Promise<void>;
-  setLongPressEnabled(options: { enabled: boolean }): Promise<void>; setContextMenuForIndex(options: { index: number; items: ContextMenuItem[] }): Promise<void>;
+  setLongPressEnabled(options: { enabled: boolean }): Promise<void>; lockTabBar(): Promise<void>; unlockTabBar(): Promise<void>;
+  setContextMenuForIndex(options: { index: number; items: ContextMenuItem[] }): Promise<void>;
   setLayout(options: { position?: 'absolute'|'safe-area'; bottomInset?: number; sideInset?: number }): Promise<void>;
   setBottomOffset(options: { bottomInset: number; position?: 'absolute'|'safe-area' }): Promise<void>;
   presentContextMenu(options: { index: number }): Promise<void>;

@@ -64,6 +64,8 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
     private var menuTitleColors = MenuColorSet(light: nil, dark: nil)
     private var menuSubtitleColors = MenuColorSet(light: nil, dark: nil)
     private var menuBackgroundTint = MenuColorSet(light: nil, dark: nil)
+    private var tabBarLocked = false
+    private var refreshRetryWorkItem: DispatchWorkItem?
 
     private func applyInterfaceStyle() {
         overrideUserInterfaceStyle = forcedInterfaceStyle
@@ -89,6 +91,22 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         }
     }
 
+    private func updateLongPressRecognizerStates() {
+        let enabled = longPressEnabled && !tabBarLocked
+        buttonLongPressRecognizers.forEach { $0.isEnabled = enabled }
+    }
+
+    private func scheduleLongPressRefreshRetry() {
+        refreshRetryWorkItem?.cancel()
+        guard longPressEnabled, !tabBarLocked else { return }
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.refreshRetryWorkItem = nil
+            self?.refreshLongPressRecognizers()
+        }
+        refreshRetryWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: workItem)
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .clear
@@ -107,7 +125,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
             tabBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             tabBar.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
-        DispatchQueue.main.async { self.refreshLongPressRecognizers() }
+        DispatchQueue.main.async { [weak self] in self?.refreshLongPressRecognizers() }
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -117,7 +135,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        DispatchQueue.main.async { self.refreshLongPressRecognizers() }
+        DispatchQueue.main.async { [weak self] in self?.refreshLongPressRecognizers() }
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -129,7 +147,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         super.traitCollectionDidChange(previous)
         applyTitleColors()
         refreshMenuPresenterTheme()
-        DispatchQueue.main.async { self.refreshLongPressRecognizers() }
+        DispatchQueue.main.async { [weak self] in self?.refreshLongPressRecognizers() }
     }
 
     func configure(tabs: [TabItem], selected: Int) {
@@ -204,6 +222,13 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         menuPresenter.updateColors(style: style, titleColor: titleColor, subtitleColor: subtitleColor, highlightColor: highlightColor, backgroundColor: backgroundColor)
     }
 
+    private func handleMenuDismissed() {
+        guard longPressEnabled, !tabBarLocked else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.refreshLongPressRecognizers()
+        }
+    }
+
     private func rebuildItems() {
         let tbarItems: [UITabBarItem] = items.enumerated().map { (idx, t) in
             let normal = HexUtil.color(perTabColors[idx]?.normal ?? globalColors.normal) ?? UIColor.secondaryLabel
@@ -219,6 +244,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         if selectedIndex >= 0 && selectedIndex < tbarItems.count {
             tabBar.selectedItem = tbarItems[selectedIndex]
         }
+        DispatchQueue.main.async { [weak self] in self?.refreshLongPressRecognizers() }
     }
 
     private func applyTitleColors() {
@@ -283,11 +309,22 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
 
     func setLongPress(enabled: Bool) {
         longPressEnabled = enabled
-        buttonLongPressRecognizers.forEach { $0.isEnabled = enabled }
+        updateLongPressRecognizerStates()
         if !enabled {
             menuPresenter.dismiss(animated: false)
         }
-        DispatchQueue.main.async { self.refreshLongPressRecognizers() }
+        DispatchQueue.main.async { [weak self] in self?.refreshLongPressRecognizers() }
+    }
+    func setTabBarLocked(_ locked: Bool) {
+        tabBarLocked = locked
+        tabBar.isUserInteractionEnabled = !locked
+        if locked {
+            menuPresenter.dismiss(animated: false)
+        }
+        updateLongPressRecognizerStates()
+        if !locked {
+            DispatchQueue.main.async { [weak self] in self?.refreshLongPressRecognizers() }
+        }
     }
     func setContextMenu(index: Int, items: [ContextItem]) { perTabCtx[index] = items }
     func setDefaultContextMenu(items: [ContextItem]) {
@@ -310,14 +347,18 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
     }
 
     private func refreshLongPressRecognizers() {
+        refreshRetryWorkItem?.cancel()
+        refreshRetryWorkItem = nil
         buttonLongPressRecognizers.forEach { recognizer in
             recognizer.view?.removeGestureRecognizer(recognizer)
         }
         buttonLongPressRecognizers.removeAll()
 
+        guard longPressEnabled, !tabBarLocked else { return }
+
         tabBar.layoutIfNeeded()
 
-        guard let tabItems = tabBar.items else { return }
+        guard let tabItems = tabBar.items, !tabItems.isEmpty else { return }
         var mapping: [(UIView, Int)] = []
 
         for (index, item) in tabItems.enumerated() {
@@ -337,7 +378,10 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
             }
         }
 
-        guard !mapping.isEmpty else { return }
+        guard !mapping.isEmpty else {
+            scheduleLongPressRefreshRetry()
+            return
+        }
 
         for (view, index) in mapping {
             view.tag = index
@@ -346,14 +390,15 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
             recognizer.allowableMovement = 20
             recognizer.cancelsTouchesInView = false
             recognizer.delegate = self
-            recognizer.isEnabled = longPressEnabled
+            recognizer.isEnabled = longPressEnabled && !tabBarLocked
             view.addGestureRecognizer(recognizer)
             buttonLongPressRecognizers.append(recognizer)
         }
+        updateLongPressRecognizerStates()
     }
 
     @objc private func handleButtonLongPress(_ recognizer: UILongPressGestureRecognizer) {
-        guard longPressEnabled, recognizer.state == .began else { return }
+        guard longPressEnabled, !tabBarLocked, recognizer.state == .began else { return }
         guard let index = recognizer.view?.tag, index >= 0 else { return }
         presentMenu(at: index)
     }
@@ -370,6 +415,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
 
     func presentMenu(at index: Int) {
         guard index >= 0, index < items.count else { return }
+        guard !tabBarLocked else { return }
         let menuItems = perTabCtx[index] ?? defaultCtx
         guard !menuItems.isEmpty else { return }
 
@@ -393,9 +439,13 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
                               titleColor: titleColor,
                               subtitleColor: subtitleColor,
                               highlightColor: highlightColor,
-                              backgroundColor: backgroundColor) { [weak self] itemId in
-            self?.onContextItem?(index, itemId)
-        }
+                              backgroundColor: backgroundColor,
+                              onSelect: { [weak self] itemId in
+                                  self?.onContextItem?(index, itemId)
+                              },
+                              onDismiss: { [weak self] in
+                                  self?.handleMenuDismissed()
+                              })
     }
 
     // MARK: - UIGestureRecognizerDelegate

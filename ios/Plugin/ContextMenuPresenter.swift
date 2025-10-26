@@ -38,11 +38,11 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
             let base: UIColor
             switch style {
             case .dark:
-                base = UIColor.white.withAlphaComponent(0.04)
+                base = UIColor.white.withAlphaComponent(0.02)
             default:
-                base = UIColor.black.withAlphaComponent(0.018)
+                base = UIColor.black.withAlphaComponent(0.009)
             }
-            cachedHighlightColor = (color?.withAlphaComponent(style == .dark ? 0.06 : 0.03)) ?? base
+            cachedHighlightColor = (color?.withAlphaComponent(style == .dark ? 0.03 : 0.015)) ?? base
             highlightView.backgroundColor = cachedHighlightColor
         }
 
@@ -82,6 +82,7 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
     private var backgroundTint: UIColor?
     private let menuWidth: CGFloat = 220
     private let itemHeight: CGFloat = 52
+    private var dismissalHandler: (() -> Void)?
 
     func present(over container: UIView,
                  tabBar: UITabBar,
@@ -93,11 +94,13 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
                  subtitleColor: UIColor,
                  highlightColor: UIColor?,
                  backgroundColor: UIColor?,
-                 onSelect: @escaping (String) -> Void) {
+                 onSelect: @escaping (String) -> Void,
+                 onDismiss: (() -> Void)? = nil) {
         dismiss(animated: false)
 
         guard !items.isEmpty else { return }
 
+        dismissalHandler = onDismiss
         containerView = container
         self.tabBar = tabBar
         currentItems = items
@@ -110,7 +113,7 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
 
         let overlay = UIView(frame: container.bounds)
         overlay.translatesAutoresizingMaskIntoConstraints = false
-        overlay.backgroundColor = style == .dark ? UIColor.black.withAlphaComponent(0.03) : UIColor.black.withAlphaComponent(0.015)
+        overlay.backgroundColor = style == .dark ? UIColor.black.withAlphaComponent(0.015) : UIColor.black.withAlphaComponent(0.0075)
         overlay.alpha = 0
         container.addSubview(overlay)
         NSLayoutConstraint.activate([
@@ -165,14 +168,14 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
         let border = CALayer()
         border.cornerRadius = 18
         border.borderWidth = 1.0
-        border.borderColor = UIColor.white.withAlphaComponent(style == .dark ? 0.04 : 0.055).cgColor
+        border.borderColor = UIColor.white.withAlphaComponent(style == .dark ? 0.02 : 0.0275).cgColor
         blur.layer.addSublayer(border)
         borderLayer = border
 
         let inner = CALayer()
         inner.cornerRadius = 17.5
         inner.borderWidth = 0.5
-        inner.borderColor = UIColor.white.withAlphaComponent(style == .dark ? 0.02 : 0.035).cgColor
+        inner.borderColor = UIColor.white.withAlphaComponent(style == .dark ? 0.01 : 0.0175).cgColor
         blur.contentView.layer.addSublayer(inner)
         innerBorderLayer = inner
 
@@ -271,6 +274,9 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
             self?.currentIndex = nil
             self?.rowComponents = []
             self?.backgroundTint = nil
+            let handler = self?.dismissalHandler
+            self?.dismissalHandler = nil
+            handler?()
         }
 
         if animated {
@@ -305,14 +311,14 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
         }
 
         if let border = borderLayer {
-            border.borderColor = UIColor.white.withAlphaComponent(style == .dark ? 0.04 : 0.055).cgColor
+            border.borderColor = UIColor.white.withAlphaComponent(style == .dark ? 0.02 : 0.0275).cgColor
         }
 
         if let inner = innerBorderLayer {
-            inner.borderColor = UIColor.white.withAlphaComponent(style == .dark ? 0.02 : 0.035).cgColor
+            inner.borderColor = UIColor.white.withAlphaComponent(style == .dark ? 0.01 : 0.0175).cgColor
         }
 
-        overlayView?.backgroundColor = style == .dark ? UIColor.black.withAlphaComponent(0.03) : UIColor.black.withAlphaComponent(0.015)
+        overlayView?.backgroundColor = style == .dark ? UIColor.black.withAlphaComponent(0.015) : UIColor.black.withAlphaComponent(0.0075)
         menuView?.layer.shadowColor = UIColor.black.withAlphaComponent(style == .dark ? 0.07 : 0.045).cgColor
         blurView?.contentView.backgroundColor = resolvedBackgroundColor(for: style)
         blurView?.layer.cornerRadius = 18
@@ -464,10 +470,10 @@ final class ContextMenuPresenter: NSObject, UIGestureRecognizerDelegate {
 
     private func resolvedBackgroundColor(for style: UIUserInterfaceStyle) -> UIColor {
         if let tint = backgroundTint {
-            let alpha: CGFloat = style == .dark ? 0.025 : 0.02
+            let alpha: CGFloat = style == .dark ? 0.0125 : 0.01
             return tint.withAlphaComponent(alpha)
         }
-        return style == .dark ? UIColor.white.withAlphaComponent(0.004) : UIColor.white.withAlphaComponent(0.0125)
+        return style == .dark ? UIColor.white.withAlphaComponent(0.002) : UIColor.white.withAlphaComponent(0.00625)
     }
 
     private func updateGlassLayers() {
