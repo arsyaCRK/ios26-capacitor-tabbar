@@ -29,6 +29,55 @@ public class TabBarPlugin: CAPPlugin {
     return try JSONDecoder().decode(T.self, from: data)
   }
 
+  private func framePayload(_ rect: CGRect) -> [String: Double] {
+    return [
+      "x": Double(rect.origin.x),
+      "y": Double(rect.origin.y),
+      "width": Double(rect.size.width),
+      "height": Double(rect.size.height)
+    ]
+  }
+
+  private func insetsPayload(_ insets: UIEdgeInsets) -> [String: Double] {
+    return [
+      "top": Double(insets.top),
+      "left": Double(insets.left),
+      "bottom": Double(insets.bottom),
+      "right": Double(insets.right)
+    ]
+  }
+
+  private func metricsPayload(_ metrics: NativeTabBarController.Metrics, selectedIndex: Int? = nil) -> [String: Any] {
+    var payload: [String: Any] = [
+      "width": Double(metrics.tabBarFrame.size.width),
+      "height": Double(metrics.tabBarFrame.size.height),
+      "x": Double(metrics.tabBarFrame.origin.x),
+      "y": Double(metrics.tabBarFrame.origin.y),
+      "tabBarFrame": framePayload(metrics.tabBarFrame),
+      "containerFrame": framePayload(metrics.containerFrame),
+      "containerSafeArea": insetsPayload(metrics.containerSafeAreaInsets),
+      "tabBarSafeArea": insetsPayload(metrics.tabBarSafeAreaInsets),
+      "usesSafeArea": self.usesSafeArea,
+      "configuredBottomInset": Double(self.currentBottomInset)
+    ]
+    if let idx = selectedIndex {
+      payload["selectedIndex"] = idx
+    }
+    if let bridgeSize = self.bridge?.viewController?.view.bounds.size {
+      payload["viewport"] = [
+        "width": Double(bridgeSize.width),
+        "height": Double(bridgeSize.height)
+      ]
+    }
+    return payload
+  }
+
+  private func emitMetricsEvent(_ metrics: NativeTabBarController.Metrics) {
+    let index = self.host?.selectedTabIndex
+    let data = metricsPayload(metrics, selectedIndex: index)
+    self.notifyListeners("tabBarMetrics", data: data)
+  }
+
   private func titlePaletteFrom(_ t: TitleColors?) -> NativeTabBarController.TitlePalette? {
     guard let t = t else { return nil }
     return NativeTabBarController.TitlePalette(
@@ -134,6 +183,10 @@ public class TabBarPlugin: CAPPlugin {
         }
         c.onLongPress = { [weak self] idx, route in self?.notifyListeners("tabLongPress", data: ["index": idx, "route": route]) }
         c.onContextItem = { [weak self] idx, itemId in self?.notifyListeners("contextMenuItemSelected", data: ["index": idx, "itemId": itemId]) }
+        c.onMetricsChanged = { [weak self] metrics in
+          guard let self else { return }
+          self.emitMetricsEvent(metrics)
+        }
 
         self.attachIfNeeded(c, bottomInset, sideInset)
 
@@ -151,6 +204,9 @@ public class TabBarPlugin: CAPPlugin {
 
         c.configure(tabs: tabs, selected: selected)
         self.host = c
+        DispatchQueue.main.async {
+          c.notifyMetricsChanged(force: true)
+        }
         call.resolve()
       } catch {
         call.reject("Invalid options: \(error)")
@@ -165,6 +221,7 @@ public class TabBarPlugin: CAPPlugin {
       let pos = call.getString("position") ?? (self.usesSafeArea ? "safe-area" : "absolute")
       let respect = (pos == "safe-area")
       self.replaceBottomConstraint(respectSafeArea: respect, inset: inset)
+      DispatchQueue.main.async { [weak self] in self?.host?.notifyMetricsChanged(force: true) }
       call.resolve()
     }
   }
@@ -194,6 +251,7 @@ public class TabBarPlugin: CAPPlugin {
         self.trailingConstraint?.constant = CGFloat(-si)
       }
       self.bridge?.viewController?.view.layoutIfNeeded()
+      DispatchQueue.main.async { [weak self] in self?.host?.notifyMetricsChanged(force: true) }
       call.resolve()
     }
   }
@@ -212,6 +270,7 @@ public class TabBarPlugin: CAPPlugin {
       }
       self.pendingInterfaceStyle = resolved
       self.host?.setInterfaceStyle(resolved)
+      self.host?.notifyMetricsChanged(force: true)
       call.resolve()
     }
   }
@@ -300,6 +359,16 @@ public class TabBarPlugin: CAPPlugin {
     DispatchQueue.main.async {
       self.host?.setLongPress(enabled: call.getBool("enabled") ?? true)
       call.resolve()
+    }
+  }
+
+  @objc public func getTabBarMetrics(_ call: CAPPluginCall) {
+    DispatchQueue.main.async {
+      guard let host = self.host, let metrics = host.currentMetrics() else {
+        call.reject("tab bar not available")
+        return
+      }
+      call.resolve(self.metricsPayload(metrics, selectedIndex: host.selectedTabIndex))
     }
   }
 

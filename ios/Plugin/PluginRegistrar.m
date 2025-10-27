@@ -11,6 +11,7 @@ CAP_PLUGIN(MmsmartCapacitorIos26Tabbar, "MmsmartCapacitorIos26Tabbar",
   CAP_PLUGIN_METHOD(setTitleColors, CAPPluginReturnPromise);
   CAP_PLUGIN_METHOD(setTabTitleColors, CAPPluginReturnPromise);
   CAP_PLUGIN_METHOD(setLongPressEnabled, CAPPluginReturnPromise);
+  CAP_PLUGIN_METHOD(getTabBarMetrics, CAPPluginReturnPromise);
   CAP_PLUGIN_METHOD(lockTabBar, CAPPluginReturnPromise);
   CAP_PLUGIN_METHOD(unlockTabBar, CAPPluginReturnPromise);
   CAP_PLUGIN_METHOD(setContextMenuForIndex, CAPPluginReturnPromise);

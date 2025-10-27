@@ -8,8 +8,9 @@
 - **Контекстное меню** по долгому нажатию (LongPress) на элементы таббара — per‑tab.
 - **Бейджи** на табах.
 - **Runtime‑layout**: можно задать отступ от нижнего края и боковые отступы (позиция абсолютная).
+- Метрики таббара: метод `getTabBarMetrics` и событие `tabBarMetrics` для синхронизации layout.
 - Принудительный выбор темы таббара: `light`, `dark` или `auto` (следовать системе).
-- События: `tabSelected`, `tabReselected`, `tabLongPress`, `contextMenuItemSelected`.
+- События: `tabSelected`, `tabReselected`, `tabLongPress`, `contextMenuItemSelected`, `tabBarMetrics`.
 
 > В версии **1.1.4+** полностью удалены API анимации иконок (символьные эффекты).
 
@@ -276,6 +277,19 @@ await TabBar.setLongPressEnabled({ enabled: true })
 
 ---
 
+### `getTabBarMetrics(): Promise<TabBarMetrics>`
+
+Возвращает текущие размеры, позицию и safe-area-инсеты контейнера таббара. Полезно сразу после `show`, чтобы подстроить WebView или свои оверлеи.
+
+```ts
+const metrics = await TabBar.getTabBarMetrics()
+console.log(metrics.width, metrics.height, metrics.containerSafeArea.bottom)
+```
+
+Совместно со событием `tabBarMetrics` даёт возможность реагировать на вращение экрана, изменения safe-area и перестройку layout без ручного пересчёта.
+
+---
+
 ### `lockTabBar(): Promise<void>`
 
 Полностью блокирует взаимодействие пользователя с таббаром и его контекстными меню (тапы и долгие нажатия игнорируются до разблокировки).
@@ -408,6 +422,18 @@ TabBar.addListener('tabReselected', ({ index, route }) => {
 ```ts
 TabBar.addListener('tabLongPress', ({ index, route }) => {
   console.log('Long press on tab', index, route)
+})
+```
+
+> Долгий тап больше не инициирует обычный `tabSelected`. После срабатывания long press таб остаётся на прежней вкладке, пока пользователь явно не тапнет снова.
+
+### `tabBarMetrics`
+
+Присылает актуальные геометрические данные таббара при появлении и при любых изменениях (ориентация, Safe Area, layout).
+
+```ts
+TabBar.addListener('tabBarMetrics', metrics => {
+  console.log('tabbar height', metrics.height, 'bottom inset', metrics.containerSafeArea.bottom)
 })
 ```
 
