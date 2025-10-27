@@ -74,7 +74,6 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
     private var menuBackgroundTint = MenuColorSet(light: nil, dark: nil)
     private var tabBarLocked = false
     private var refreshRetryWorkItem: DispatchWorkItem?
-    private var lastEmittedMetrics: Metrics?
     private var suppressSelectionFromLongPress = false
     private var cachedItemEnabledStates: [Int: Bool] = [:]
 
@@ -133,10 +132,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
 
     private func emitMetricsIfNeeded(force: Bool = false) {
         guard let metrics = captureMetrics() else { return }
-        if force || lastEmittedMetrics != metrics {
-            lastEmittedMetrics = metrics
-            onMetricsChanged?(metrics)
-        }
+        onMetricsChanged?(metrics)
     }
 
     func notifyMetricsChanged(force: Bool = false) {
@@ -535,6 +531,9 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
 
     // MARK: - UIGestureRecognizerDelegate
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        if gestureRecognizer is UILongPressGestureRecognizer || otherGestureRecognizer is UILongPressGestureRecognizer {
+            return false
+        }
         return true
     }
 
