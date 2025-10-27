@@ -121,6 +121,8 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
     private func captureMetrics() -> Metrics? {
         guard let referenceView = view.window ?? view.superview ?? view else { return nil }
         referenceView.layoutIfNeeded()
+        view.layoutIfNeeded()
+        tabBar.layoutIfNeeded()
         let container = view.convert(view.bounds, to: referenceView)
         let bar = tabBar.convert(tabBar.bounds, to: referenceView)
         return Metrics(containerFrame: container,
@@ -472,11 +474,16 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
     @objc private func handleButtonLongPress(_ recognizer: UILongPressGestureRecognizer) {
         guard longPressEnabled, !tabBarLocked, recognizer.state == .began else { return }
         guard let index = recognizer.view?.tag, index >= 0 else { return }
+        let menuItems = perTabCtx[index] ?? defaultCtx
+        guard !menuItems.isEmpty else { return }
         suppressSelectionFromLongPress = true
         if let items = tabBar.items, selectedIndex >= 0, selectedIndex < items.count {
             tabBar.selectedItem = items[selectedIndex]
         }
-        presentMenu(at: index)
+        let presented = presentMenu(at: index, items: menuItems)
+        if !presented {
+            suppressSelectionFromLongPress = false
+        }
     }
 
     @discardableResult
@@ -489,16 +496,17 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         return true
     }
 
-    func presentMenu(at index: Int) {
-        guard index >= 0, index < items.count else { return }
-        guard !tabBarLocked else { return }
-        let menuItems = perTabCtx[index] ?? defaultCtx
-        guard !menuItems.isEmpty else { return }
+    @discardableResult
+    func presentMenu(at index: Int, items precomputedItems: [ContextItem]? = nil) -> Bool {
+        guard index >= 0, index < items.count else { return false }
+        guard !tabBarLocked else { return false }
+        let menuItems = precomputedItems ?? perTabCtx[index] ?? defaultCtx
+        guard !menuItems.isEmpty else { return false }
 
         let route = items[index].route
         onLongPress?(index, route)
 
-        guard let hostView = view.window ?? view.superview ?? view else { return }
+        guard let hostView = view.window ?? view.superview ?? view else { return false }
 
         let style = effectiveInterfaceStyle()
         let titleColor = resolveColor(from: menuTitleColors, style: style) ?? fallbackTitleColor(for: index, style: style) ?? UIColor.label
@@ -522,6 +530,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
                               onDismiss: { [weak self] in
                                   self?.handleMenuDismissed()
                               })
+        return true
     }
 
     // MARK: - UIGestureRecognizerDelegate

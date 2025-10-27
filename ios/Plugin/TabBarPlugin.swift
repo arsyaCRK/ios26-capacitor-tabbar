@@ -152,6 +152,7 @@ public class TabBarPlugin: CAPPlugin {
 
       bridgeVC.view.bringSubviewToFront(c.view)
     }
+    bridgeVC.view.layoutIfNeeded()
   }
 
   @objc public func show(_ call: CAPPluginCall) {
