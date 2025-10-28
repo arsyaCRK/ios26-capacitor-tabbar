@@ -75,9 +75,6 @@ public class TabBarPlugin: CAPPlugin {
   private func emitMetricsEvent(_ metrics: NativeTabBarController.Metrics) {
     let index = self.host?.selectedTabIndex
     let data = metricsPayload(metrics, selectedIndex: index)
-#if DEBUG
-    print("[TabBarPlugin] emitMetricsEvent", data)
-#endif
     self.notifyListeners("tabBarMetrics", data: data)
   }
 
@@ -366,15 +363,12 @@ public class TabBarPlugin: CAPPlugin {
     }
   }
 
-  @objc(getTabBarMetrics:) public func capacitorGetTabBarMetrics(_ call: CAPPluginCall) {
+  @objc(getTabBarMetrics:) public func getTabBarMetrics(_ call: CAPPluginCall) {
     DispatchQueue.main.async {
       guard let host = self.host, let metrics = host.currentMetrics() else {
         call.reject("tab bar not available")
         return
       }
-      #if DEBUG
-      print("[TabBarPlugin] getTabBarMetrics", metrics)
-      #endif
       call.resolve(self.metricsPayload(metrics, selectedIndex: host.selectedTabIndex))
     }
   }
