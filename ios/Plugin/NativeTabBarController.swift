@@ -531,9 +531,6 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
 
     // MARK: - UIGestureRecognizerDelegate
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-        if gestureRecognizer is UILongPressGestureRecognizer || otherGestureRecognizer is UILongPressGestureRecognizer {
-            return false
-        }
         return true
     }
 
