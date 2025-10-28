@@ -75,6 +75,9 @@ public class TabBarPlugin: CAPPlugin {
   private func emitMetricsEvent(_ metrics: NativeTabBarController.Metrics) {
     let index = self.host?.selectedTabIndex
     let data = metricsPayload(metrics, selectedIndex: index)
+#if DEBUG
+    print("[TabBarPlugin] emitMetricsEvent", data)
+#endif
     self.notifyListeners("tabBarMetrics", data: data)
   }
 
@@ -369,6 +372,9 @@ public class TabBarPlugin: CAPPlugin {
         call.reject("tab bar not available")
         return
       }
+      #if DEBUG
+      print("[TabBarPlugin] getTabBarMetrics", metrics)
+      #endif
       call.resolve(self.metricsPayload(metrics, selectedIndex: host.selectedTabIndex))
     }
   }
