@@ -363,7 +363,7 @@ public class TabBarPlugin: CAPPlugin {
     }
   }
 
-  @objc(getTabBarMetrics:) public func getTabBarMetrics(_ call: CAPPluginCall) {
+  @objc(getTabBarMetrics:) public func capacitorGetTabBarMetrics(_ call: CAPPluginCall) {
     DispatchQueue.main.async {
       guard let host = self.host, let metrics = host.currentMetrics() else {
         call.reject("tab bar not available")
