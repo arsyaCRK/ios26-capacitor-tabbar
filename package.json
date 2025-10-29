@@ -16,16 +16,12 @@
     "dist",
     "src",
     "web",
-    "android",
     "README.md",
     "LICENSE"
   ],
   "capacitor": {
     "ios": {
       "src": "ios"
-    },
-    "android": {
-      "src": "android"
     }
   },
   "peerDependencies": {

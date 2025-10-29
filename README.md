@@ -11,6 +11,7 @@
 - Метрики таббара: метод `getTabBarMetrics` и событие `tabBarMetrics` для синхронизации layout.
 - Принудительный выбор темы таббара: `light`, `dark` или `auto` (следовать системе).
 - События: `tabSelected`, `tabReselected`, `tabLongPress`, `contextMenuItemSelected`, `tabBarMetrics`.
+- **Только iOS/iPadOS**: нативной реализации для Android нет, вызовы на Android приводятся к заглушке.
 
 > В версии **1.1.4+** полностью удалены API анимации иконок (символьные эффекты).
 
@@ -465,10 +466,6 @@ TabBar.addListener('contextMenuItemSelected', ({ index, itemId }) => {
 - Цвета иконок и подписей задаются через методы API (см. выше).
 
 ---
-
-## Android
-
-На Android — заглушка: вызовы методов успешно резолвятся, но визуальный таббар не создаётся. Подключайте альтернативный таббар на веб‑уровне для Android.
 
 ---
 
