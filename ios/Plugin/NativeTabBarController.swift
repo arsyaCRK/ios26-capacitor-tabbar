@@ -85,14 +85,31 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
             window.overrideUserInterfaceStyle = forcedInterfaceStyle
             trackedWindow = window
         }
+        applyAppearance()
         refreshMenuPresenterTheme()
     }
 
     private func applyAppearance() {
         let appearance = UITabBarAppearance()
-        appearance.configureWithTransparentBackground()
-        appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
-        appearance.backgroundColor = UIColor.clear
+        switch effectiveInterfaceStyle() {
+        case .dark:
+            appearance.configureWithTransparentBackground()
+            appearance.backgroundEffect = UIBlurEffect(style: .systemChromeMaterialDark)
+            // Keep dark style stable regardless of the content underneath.
+            appearance.backgroundColor = UIColor.black.withAlphaComponent(0.16)
+            tabBar.barStyle = .black
+        case .light:
+            appearance.configureWithTransparentBackground()
+            appearance.backgroundEffect = UIBlurEffect(style: .systemChromeMaterialLight)
+            // Keep light style stable regardless of the content underneath.
+            appearance.backgroundColor = UIColor.white.withAlphaComponent(0.12)
+            tabBar.barStyle = .default
+        default:
+            appearance.configureWithTransparentBackground()
+            appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
+            appearance.backgroundColor = UIColor.clear
+            tabBar.barStyle = .default
+        }
         appearance.shadowImage = UIImage()
         appearance.shadowColor = .clear
         tabBar.standardAppearance = appearance
@@ -188,6 +205,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
 
     override func traitCollectionDidChange(_ previous: UITraitCollection?) {
         super.traitCollectionDidChange(previous)
+        applyAppearance()
         applyTitleColors()
         refreshMenuPresenterTheme()
         DispatchQueue.main.async { [weak self] in
