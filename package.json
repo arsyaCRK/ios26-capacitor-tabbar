@@ -1,6 +1,6 @@
 {
   "name": "@mmsmart/capacitor-ios26-tabbar",
-  "version": "1.1.11-stable",
+  "version": "1.1.12-stable",
   "description": "Capacitor iOS TabBar (UIKit UITabBar, iOS 13+) with iOS 26 glass, icon & title color APIs, context menu, badges, and runtime layout. Rootpod. (Icon animations removed)",
   "author": "MimiSmart",
   "license": "MIT",
