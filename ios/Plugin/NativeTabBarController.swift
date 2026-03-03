@@ -93,22 +93,25 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         let appearance = UITabBarAppearance()
         switch effectiveInterfaceStyle() {
         case .dark:
-            appearance.configureWithTransparentBackground()
-            appearance.backgroundEffect = UIBlurEffect(style: .systemChromeMaterialDark)
-            // Keep dark style stable regardless of the content underneath.
-            appearance.backgroundColor = UIColor.black.withAlphaComponent(0.16)
+            // Force stable dark look without background-driven auto legibility.
+            appearance.configureWithOpaqueBackground()
+            appearance.backgroundEffect = nil
+            appearance.backgroundColor = UIColor(red: 0.08, green: 0.08, blue: 0.10, alpha: 1.0)
             tabBar.barStyle = .black
+            tabBar.isTranslucent = false
         case .light:
-            appearance.configureWithTransparentBackground()
-            appearance.backgroundEffect = UIBlurEffect(style: .systemChromeMaterialLight)
-            // Keep light style stable regardless of the content underneath.
-            appearance.backgroundColor = UIColor.white.withAlphaComponent(0.12)
+            // Force stable light look without background-driven auto legibility.
+            appearance.configureWithOpaqueBackground()
+            appearance.backgroundEffect = nil
+            appearance.backgroundColor = UIColor(red: 0.98, green: 0.98, blue: 0.99, alpha: 1.0)
             tabBar.barStyle = .default
+            tabBar.isTranslucent = false
         default:
             appearance.configureWithTransparentBackground()
             appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
             appearance.backgroundColor = UIColor.clear
             tabBar.barStyle = .default
+            tabBar.isTranslucent = true
         }
         appearance.shadowImage = UIImage()
         appearance.shadowColor = .clear
