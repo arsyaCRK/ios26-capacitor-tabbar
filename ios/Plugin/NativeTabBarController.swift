@@ -76,6 +76,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
     private var refreshRetryWorkItem: DispatchWorkItem?
     private var suppressSelectionFromLongPress = false
     private var cachedItemEnabledStates: [Int: Bool] = [:]
+    private var useDarkForegroundForLegibility = false
 
     private func applyInterfaceStyle() {
         overrideUserInterfaceStyle = forcedInterfaceStyle
@@ -91,29 +92,23 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
 
     private func applyAppearance() {
         let appearance = UITabBarAppearance()
-        let backgroundColor: UIColor
         switch effectiveInterfaceStyle() {
         case .dark:
-            // Force stable dark look without background-driven auto legibility.
-            appearance.configureWithOpaqueBackground()
-            appearance.backgroundEffect = nil
-            backgroundColor = UIColor(red: 0.08, green: 0.08, blue: 0.10, alpha: 1.0)
-            appearance.backgroundColor = backgroundColor
+            appearance.configureWithTransparentBackground()
+            appearance.backgroundEffect = UIBlurEffect(style: .systemChromeMaterialDark)
+            appearance.backgroundColor = UIColor.clear
             tabBar.barStyle = .black
-            tabBar.isTranslucent = false
+            tabBar.isTranslucent = true
         case .light:
-            // Force stable light look without background-driven auto legibility.
-            appearance.configureWithOpaqueBackground()
-            appearance.backgroundEffect = nil
-            backgroundColor = UIColor(red: 0.98, green: 0.98, blue: 0.99, alpha: 1.0)
-            appearance.backgroundColor = backgroundColor
+            appearance.configureWithTransparentBackground()
+            appearance.backgroundEffect = UIBlurEffect(style: .systemChromeMaterialLight)
+            appearance.backgroundColor = UIColor.clear
             tabBar.barStyle = .default
-            tabBar.isTranslucent = false
+            tabBar.isTranslucent = true
         default:
             appearance.configureWithTransparentBackground()
             appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
-            backgroundColor = UIColor.clear
-            appearance.backgroundColor = backgroundColor
+            appearance.backgroundColor = UIColor.clear
             tabBar.barStyle = .default
             tabBar.isTranslucent = true
         }
@@ -123,10 +118,82 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         if #available(iOS 15.0, *) {
             tabBar.scrollEdgeAppearance = appearance
         }
-        // Extra guard: keep the backing view color fixed in forced light/dark modes.
-        tabBar.backgroundColor = backgroundColor
-        tabBar.barTintColor = backgroundColor
-        view.backgroundColor = backgroundColor
+        tabBar.backgroundColor = .clear
+        tabBar.barTintColor = nil
+        view.backgroundColor = .clear
+    }
+
+    private func colorLuminance(_ color: UIColor) -> CGFloat {
+        var r: CGFloat = 0
+        var g: CGFloat = 0
+        var b: CGFloat = 0
+        var a: CGFloat = 0
+        guard color.getRed(&r, green: &g, blue: &b, alpha: &a) else { return 0 }
+        return (0.2126 * r) + (0.7152 * g) + (0.0722 * b)
+    }
+
+    private func isVeryLight(_ color: UIColor) -> Bool {
+        return colorLuminance(color) >= 0.78
+    }
+
+    private func sampledTabBarBackgroundColor() -> UIColor? {
+        guard let window = view.window ?? trackedWindow else { return nil }
+        let frameInWindow = tabBar.convert(tabBar.bounds, to: window)
+        guard frameInWindow.width > 2, frameInWindow.height > 2 else { return nil }
+        let samplePoint = CGPoint(x: frameInWindow.midX, y: frameInWindow.maxY - 2)
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 1, height: 1))
+        let image = renderer.image { context in
+            context.cgContext.translateBy(x: -samplePoint.x, y: -samplePoint.y)
+            window.layer.render(in: context.cgContext)
+        }
+        guard let cgImage = image.cgImage else {
+            return nil
+        }
+        var raw: [UInt8] = [0, 0, 0, 0]
+        guard let bitmap = CGContext(
+            data: &raw,
+            width: 1,
+            height: 1,
+            bitsPerComponent: 8,
+            bytesPerRow: 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            return nil
+        }
+        bitmap.draw(cgImage, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        let r = CGFloat(raw[0]) / 255.0
+        let g = CGFloat(raw[1]) / 255.0
+        let b = CGFloat(raw[2]) / 255.0
+        let a = CGFloat(raw[3]) / 255.0
+        return UIColor(red: r, green: g, blue: b, alpha: a)
+    }
+
+    private func updateForegroundLegibility() {
+        let sampled = sampledTabBarBackgroundColor()
+        let shouldUseDark = sampled.map { isVeryLight($0) } ?? false
+        guard shouldUseDark != useDarkForegroundForLegibility else { return }
+        useDarkForegroundForLegibility = shouldUseDark
+        rebuildItems()
+        applyTitleColors()
+    }
+
+    private func adjustedIconColor(_ base: UIColor, selected: Bool) -> UIColor {
+        guard useDarkForegroundForLegibility else { return base }
+        return selected ? UIColor.black : UIColor(white: 0.05, alpha: 1.0)
+    }
+
+    private func adjustedTitleColor(_ base: UIColor?, state: UIControl.State) -> UIColor {
+        let fallback: UIColor
+        if state.contains(.disabled) {
+            fallback = UIColor(white: 0.45, alpha: 1.0)
+        } else if state.contains(.selected) {
+            fallback = UIColor.black
+        } else {
+            fallback = UIColor(white: 0.05, alpha: 1.0)
+        }
+        guard useDarkForegroundForLegibility else { return base ?? fallback }
+        return fallback
     }
 
     private func updateLongPressRecognizerStates() {
@@ -198,12 +265,14 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         applyInterfaceStyle()
+        updateForegroundLegibility()
         notifyMetricsChanged(force: true)
     }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         DispatchQueue.main.async { [weak self] in
+            self?.updateForegroundLegibility()
             self?.refreshLongPressRecognizers()
             self?.emitMetricsIfNeeded()
         }
@@ -217,6 +286,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
     override func traitCollectionDidChange(_ previous: UITraitCollection?) {
         super.traitCollectionDidChange(previous)
         applyAppearance()
+        updateForegroundLegibility()
         applyTitleColors()
         refreshMenuPresenterTheme()
         DispatchQueue.main.async { [weak self] in
@@ -309,8 +379,10 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
 
     private func rebuildItems() {
         let tbarItems: [UITabBarItem] = items.enumerated().map { (idx, t) in
-            let normal = HexUtil.color(perTabColors[idx]?.normal ?? globalColors.normal) ?? UIColor.secondaryLabel
-            let select = HexUtil.color(perTabColors[idx]?.selected ?? globalColors.selected) ?? UIColor.systemBlue
+            let normalBase = HexUtil.color(perTabColors[idx]?.normal ?? globalColors.normal) ?? UIColor.secondaryLabel
+            let selectedBase = HexUtil.color(perTabColors[idx]?.selected ?? globalColors.selected) ?? UIColor.systemBlue
+            let normal = adjustedIconColor(normalBase, selected: false)
+            let select = adjustedIconColor(selectedBase, selected: true)
             let img = HexUtil.tintedSymbol(t.sfSymbol, color: normal)
             let sel = HexUtil.tintedSymbol(t.sfSymbol, color: select)
             let it = UITabBarItem(title: t.title, image: img, selectedImage: sel)
@@ -350,9 +422,8 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
 
         func attributes(for palette: TitlePalette, state: UIControl.State) -> [NSAttributedString.Key: Any] {
             var attrs: [NSAttributedString.Key: Any] = [:]
-            if let color = HexUtil.color(colorString(for: palette, state: state)) {
-                attrs[.foregroundColor] = color
-            }
+            let explicit = HexUtil.color(colorString(for: palette, state: state))
+            attrs[.foregroundColor] = adjustedTitleColor(explicit, state: state)
             return attrs
         }
 
@@ -441,6 +512,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
     func setInterfaceStyle(_ style: UIUserInterfaceStyle) {
         forcedInterfaceStyle = style
         applyInterfaceStyle()
+        updateForegroundLegibility()
         applyTitleColors()
         rebuildItems()
     }
