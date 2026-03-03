@@ -91,25 +91,29 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
 
     private func applyAppearance() {
         let appearance = UITabBarAppearance()
+        let backgroundColor: UIColor
         switch effectiveInterfaceStyle() {
         case .dark:
             // Force stable dark look without background-driven auto legibility.
             appearance.configureWithOpaqueBackground()
             appearance.backgroundEffect = nil
-            appearance.backgroundColor = UIColor(red: 0.08, green: 0.08, blue: 0.10, alpha: 1.0)
+            backgroundColor = UIColor(red: 0.08, green: 0.08, blue: 0.10, alpha: 1.0)
+            appearance.backgroundColor = backgroundColor
             tabBar.barStyle = .black
             tabBar.isTranslucent = false
         case .light:
             // Force stable light look without background-driven auto legibility.
             appearance.configureWithOpaqueBackground()
             appearance.backgroundEffect = nil
-            appearance.backgroundColor = UIColor(red: 0.98, green: 0.98, blue: 0.99, alpha: 1.0)
+            backgroundColor = UIColor(red: 0.98, green: 0.98, blue: 0.99, alpha: 1.0)
+            appearance.backgroundColor = backgroundColor
             tabBar.barStyle = .default
             tabBar.isTranslucent = false
         default:
             appearance.configureWithTransparentBackground()
             appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
-            appearance.backgroundColor = UIColor.clear
+            backgroundColor = UIColor.clear
+            appearance.backgroundColor = backgroundColor
             tabBar.barStyle = .default
             tabBar.isTranslucent = true
         }
@@ -119,6 +123,10 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         if #available(iOS 15.0, *) {
             tabBar.scrollEdgeAppearance = appearance
         }
+        // Extra guard: keep the backing view color fixed in forced light/dark modes.
+        tabBar.backgroundColor = backgroundColor
+        tabBar.barTintColor = backgroundColor
+        view.backgroundColor = backgroundColor
     }
 
     private func updateLongPressRecognizerStates() {
