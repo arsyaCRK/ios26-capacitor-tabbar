@@ -5,6 +5,7 @@
 - Стеклянный вид (blur + прозрачный фон) как в iOS 26.
 - Отдельные **цвета иконок** (normal/selected/disabled), глобально и для каждого таба.
 - Отдельные **цвета подписей под иконками** (light/dark, normal/selected/disabled), глобально и для каждого таба.
+- Автоподстройку контраста иконок и подписей по яркости контента под таббаром, включая обновление во время скролла.
 - **Контекстное меню** по долгому нажатию (LongPress) на элементы таббара — per‑tab.
 - **Бейджи** на табах.
 - **Runtime‑layout**: можно задать отступ от нижнего края и боковые отступы (позиция абсолютная).
@@ -49,6 +50,28 @@ pod 'MmsmartCapacitorIos26Tabbar', :path => '../../node_modules/@mmsmart/capacit
 ```bash
 cd ios && pod install
 ```
+
+### Example app
+
+В репозитории есть готовый iOS-only пример в [example-app](/Users/svdex/Projects/mimi/ios26-capacitor-tabbar/example-app).
+
+Он демонстрирует:
+- одну длинную web-страницу со скроллом и градиентом от белого к чёрному;
+- нативный tabbar поверх WebView;
+- прокрутку к секциям страницы по тапу на нативные табы.
+
+Запуск:
+
+```bash
+cd example-app
+npm install
+npm run build
+npm run cap:sync:ios
+cd ios/App && pod install
+npx cap open ios
+```
+
+Пример использует тот же способ интеграции плагина, который описан в этом README.
 
 ---
 
