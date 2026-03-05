@@ -20,15 +20,20 @@ struct HexUtil {
         }
         return nil
     }
-    static func tintedSymbol(_ name: String, color: UIColor?, point: CGFloat = 18, weight: UIImage.SymbolWeight = .regular) -> UIImage? {
+    static func tintedSymbol(_ name: String, color: UIColor?, renderingMode: UIImage.RenderingMode, point: CGFloat = 18, weight: UIImage.SymbolWeight = .regular) -> UIImage? {
         let cfg = UIImage.SymbolConfiguration(pointSize: point, weight: weight)
         guard let base = UIImage(systemName: name, withConfiguration: cfg) else { return nil }
-        guard let color = color else { return base }
-        return base.withTintColor(color, renderingMode: .alwaysOriginal)
+        guard let color = color else { return base.withRenderingMode(renderingMode) }
+        return base.withTintColor(color, renderingMode: renderingMode)
     }
 }
 
 final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestureRecognizerDelegate {
+
+    enum ColorMode {
+        case custom
+        case native
+    }
 
     struct IconColors { var normal: String?; var selected: String?; var disabled: String? }
     struct TitlePalette {
@@ -58,6 +63,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
 
     private var globalColors = IconColors(normal: "#9AA0A6", selected: "#0A84FF", disabled: "#C7C7CC")
     private var perTabColors: [Int: IconColors] = [:]
+    private var colorMode: ColorMode = .custom
 
     private var globalTitles = TitlePalette(lightNormal: nil, lightSelected: nil, lightDisabled: nil, darkNormal: nil, darkSelected: nil, darkDisabled: nil)
     private var perTabTitles: [Int: TitlePalette] = [:]
@@ -201,9 +207,9 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         self.selectedIndex = max(0, min(selected, tabs.count - 1))
         perTabColors.removeAll(); perTabCtx.removeAll(); perTabTitles.removeAll()
         for (i, t) in tabs.enumerated() {
-            if let c = t.iconColors { perTabColors[i] = c }
+            if let c = t.iconColors { perTabColors[i] = normalizedIconColors(c) }
             if let m = t.ctxItems { perTabCtx[i] = m }
-            if let tp = t.titlePalette { perTabTitles[i] = tp }
+            if colorMode == .custom, let tp = t.titlePalette { perTabTitles[i] = tp }
         }
         menuPresenter.dismiss(animated: false)
         rebuildItems()
@@ -226,6 +232,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
     }
 
     private func fallbackTitleColor(for index: Int, style: UIUserInterfaceStyle) -> UIColor? {
+        if colorMode == .native { return UIColor.label }
         let palette = perTabTitles[index] ?? globalTitles
         let pick: String?
         if style == .dark {
@@ -264,7 +271,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         } else {
             highlightBase = globalColors.selected
         }
-        let highlightColor = HexUtil.color(highlightBase) ?? (style == .dark ? UIColor.systemBlue : UIColor.systemBlue)
+        let highlightColor = HexUtil.color(highlightBase) ?? UIColor.systemBlue
         let backgroundColor = resolveColor(from: menuBackgroundTint, style: style)
         menuPresenter.updateColors(style: style, titleColor: titleColor, subtitleColor: subtitleColor, highlightColor: highlightColor, backgroundColor: backgroundColor)
     }
@@ -279,11 +286,14 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
     }
 
     private func rebuildItems() {
+        let renderingMode: UIImage.RenderingMode = (colorMode == .native) ? .automatic : .alwaysOriginal
         let tbarItems: [UITabBarItem] = items.enumerated().map { (idx, t) in
-            let normal = HexUtil.color(perTabColors[idx]?.normal ?? globalColors.normal) ?? UIColor.secondaryLabel
             let select = HexUtil.color(perTabColors[idx]?.selected ?? globalColors.selected) ?? UIColor.systemBlue
-            let img = HexUtil.tintedSymbol(t.sfSymbol, color: normal)
-            let sel = HexUtil.tintedSymbol(t.sfSymbol, color: select)
+            let normal: UIColor? = (colorMode == .native)
+                ? nil
+                : (HexUtil.color(perTabColors[idx]?.normal ?? globalColors.normal) ?? UIColor.secondaryLabel)
+            let img = HexUtil.tintedSymbol(t.sfSymbol, color: normal, renderingMode: renderingMode)
+            let sel = HexUtil.tintedSymbol(t.sfSymbol, color: select, renderingMode: renderingMode)
             let it = UITabBarItem(title: t.title, image: img, selectedImage: sel)
             it.tag = idx
             if let b = t.badge, !b.isEmpty { it.badgeValue = b }
@@ -293,17 +303,56 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         if selectedIndex >= 0 && selectedIndex < tbarItems.count {
             tabBar.selectedItem = tbarItems[selectedIndex]
         }
+        applyTabBarTint(for: selectedIndex)
         if tabBarLocked {
             tabBar.items?.forEach { $0.isEnabled = false }
         }
         DispatchQueue.main.async { [weak self] in
+            self?.applyTitleColors()
             self?.refreshLongPressRecognizers()
             self?.notifyMetricsChanged(force: true)
         }
     }
 
+    private func applyTabBarTint(for index: Int) {
+        let selectedHex = perTabColors[index]?.selected ?? globalColors.selected
+        tabBar.tintColor = HexUtil.color(selectedHex) ?? UIColor.systemBlue
+        if colorMode == .native {
+            tabBar.unselectedItemTintColor = nil
+            return
+        }
+        let normalHex = perTabColors[index]?.normal ?? globalColors.normal
+        tabBar.unselectedItemTintColor = HexUtil.color(normalHex) ?? UIColor.secondaryLabel
+    }
+
+    private func resetTitleColorsToSystem() {
+        let appearance = tabBar.standardAppearance
+        appearance.stackedLayoutAppearance.normal.titleTextAttributes = [:]
+        appearance.stackedLayoutAppearance.selected.titleTextAttributes = [:]
+        appearance.stackedLayoutAppearance.disabled.titleTextAttributes = [:]
+        appearance.inlineLayoutAppearance.normal.titleTextAttributes = [:]
+        appearance.inlineLayoutAppearance.selected.titleTextAttributes = [:]
+        appearance.inlineLayoutAppearance.disabled.titleTextAttributes = [:]
+        appearance.compactInlineLayoutAppearance.normal.titleTextAttributes = [:]
+        appearance.compactInlineLayoutAppearance.selected.titleTextAttributes = [:]
+        appearance.compactInlineLayoutAppearance.disabled.titleTextAttributes = [:]
+        tabBar.standardAppearance = appearance
+        if #available(iOS 15.0, *) {
+            tabBar.scrollEdgeAppearance = appearance
+        }
+        tabBar.items?.forEach { item in
+            item.setTitleTextAttributes(nil, for: .normal)
+            item.setTitleTextAttributes(nil, for: .selected)
+            item.setTitleTextAttributes(nil, for: .disabled)
+        }
+    }
+
     private func applyTitleColors() {
-        guard let items = tabBar.items else { return }
+        if colorMode == .native {
+            resetTitleColorsToSystem()
+            return
+        }
+        let items = tabBar.items ?? []
         let effectiveStyle: UIUserInterfaceStyle = forcedInterfaceStyle == .unspecified ? traitCollection.userInterfaceStyle : forcedInterfaceStyle
         let isDark = (effectiveStyle == .dark)
 
@@ -319,34 +368,40 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
             }
         }
 
-        func attributes(for palette: TitlePalette, state: UIControl.State) -> [NSAttributedString.Key: Any] {
-            var attrs: [NSAttributedString.Key: Any] = [:]
-            if let color = HexUtil.color(colorString(for: palette, state: state)) {
-                attrs[.foregroundColor] = color
+        func attributes(for palette: TitlePalette, state: UIControl.State) -> [NSAttributedString.Key: Any]? {
+            guard let color = HexUtil.color(colorString(for: palette, state: state)) else {
+                return nil
             }
-            return attrs
+            return [.foregroundColor: color]
         }
 
         let globalNormalAttr = attributes(for: globalTitles, state: .normal)
         let globalSelectedAttr = attributes(for: globalTitles, state: .selected)
         let globalDisabledAttr = attributes(for: globalTitles, state: .disabled)
         let appearance = tabBar.standardAppearance
-        appearance.stackedLayoutAppearance.normal.titleTextAttributes = globalNormalAttr
-        appearance.stackedLayoutAppearance.selected.titleTextAttributes = globalSelectedAttr
-        appearance.stackedLayoutAppearance.disabled.titleTextAttributes = globalDisabledAttr
-        appearance.inlineLayoutAppearance.normal.titleTextAttributes = globalNormalAttr
-        appearance.inlineLayoutAppearance.selected.titleTextAttributes = globalSelectedAttr
-        appearance.inlineLayoutAppearance.disabled.titleTextAttributes = globalDisabledAttr
-        appearance.compactInlineLayoutAppearance.normal.titleTextAttributes = globalNormalAttr
-        appearance.compactInlineLayoutAppearance.selected.titleTextAttributes = globalSelectedAttr
-        appearance.compactInlineLayoutAppearance.disabled.titleTextAttributes = globalDisabledAttr
+        appearance.stackedLayoutAppearance.normal.titleTextAttributes = globalNormalAttr ?? [:]
+        appearance.stackedLayoutAppearance.selected.titleTextAttributes = globalSelectedAttr ?? [:]
+        appearance.stackedLayoutAppearance.disabled.titleTextAttributes = globalDisabledAttr ?? [:]
+        appearance.inlineLayoutAppearance.normal.titleTextAttributes = globalNormalAttr ?? [:]
+        appearance.inlineLayoutAppearance.selected.titleTextAttributes = globalSelectedAttr ?? [:]
+        appearance.inlineLayoutAppearance.disabled.titleTextAttributes = globalDisabledAttr ?? [:]
+        appearance.compactInlineLayoutAppearance.normal.titleTextAttributes = globalNormalAttr ?? [:]
+        appearance.compactInlineLayoutAppearance.selected.titleTextAttributes = globalSelectedAttr ?? [:]
+        appearance.compactInlineLayoutAppearance.disabled.titleTextAttributes = globalDisabledAttr ?? [:]
         tabBar.standardAppearance = appearance
         if #available(iOS 15.0, *) {
             tabBar.scrollEdgeAppearance = appearance
         }
 
         for (i, it) in items.enumerated() {
-            let palette = perTabTitles[i] ?? globalTitles
+            guard let palette = perTabTitles[i] else {
+                // Global цвета задаются через UITabBarAppearance; per-item атрибуты не трогаем,
+                // чтобы не включать selected-only поведение подписи на iOS 26.
+                it.setTitleTextAttributes(nil, for: .normal)
+                it.setTitleTextAttributes(nil, for: .selected)
+                it.setTitleTextAttributes(nil, for: .disabled)
+                continue
+            }
             let normalAttr = attributes(for: palette, state: .normal)
             let selectedAttr = attributes(for: palette, state: .selected)
             let disabledAttr = attributes(for: palette, state: .disabled)
@@ -354,13 +409,40 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
             it.setTitleTextAttributes(selectedAttr, for: .selected)
             it.setTitleTextAttributes(disabledAttr, for: .disabled)
         }
+        tabBar.setNeedsLayout()
+        tabBar.layoutIfNeeded()
     }
 
-    func setGlobalColors(_ c: IconColors) { globalColors = c; rebuildItems() }
-    func setTabColors(index: Int, _ c: IconColors) { perTabColors[index] = c; rebuildItems() }
+    private func normalizedIconColors(_ c: IconColors) -> IconColors {
+        if colorMode == .native {
+            return IconColors(normal: nil, selected: c.selected, disabled: nil)
+        }
+        return c
+    }
 
-    func setGlobalTitlePalette(_ p: TitlePalette) { globalTitles = p; applyTitleColors() }
-    func setTabTitlePalette(index: Int, _ p: TitlePalette) { perTabTitles[index] = p; applyTitleColors() }
+    func setColorMode(_ mode: ColorMode) {
+        guard colorMode != mode else { return }
+        colorMode = mode
+        if mode == .native {
+            perTabTitles.removeAll()
+        }
+        applyTitleColors()
+        rebuildItems()
+    }
+
+    func setGlobalColors(_ c: IconColors) { globalColors = normalizedIconColors(c); rebuildItems() }
+    func setTabColors(index: Int, _ c: IconColors) { perTabColors[index] = normalizedIconColors(c); rebuildItems() }
+
+    func setGlobalTitlePalette(_ p: TitlePalette) {
+        guard colorMode == .custom else { return }
+        globalTitles = p
+        applyTitleColors()
+    }
+    func setTabTitlePalette(index: Int, _ p: TitlePalette) {
+        guard colorMode == .custom else { return }
+        perTabTitles[index] = p
+        applyTitleColors()
+    }
 
     func setLongPress(enabled: Bool) {
         longPressEnabled = enabled
@@ -488,6 +570,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         tabBar.selectedItem = items[index]
         let reselection = (index == selectedIndex)
         selectedIndex = index
+        applyTabBarTint(for: index)
         onSelect?(index, self.items[index].route, reselection)
         return true
     }
@@ -507,7 +590,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         let style = effectiveInterfaceStyle()
         let titleColor = resolveColor(from: menuTitleColors, style: style) ?? fallbackTitleColor(for: index, style: style) ?? UIColor.label
         let subtitleColor = resolveColor(from: menuSubtitleColors, style: style) ?? UIColor.secondaryLabel
-        let highlightColor = HexUtil.color(perTabColors[index]?.selected ?? globalColors.selected) ?? (style == .dark ? UIColor.systemBlue : UIColor.systemBlue)
+        let highlightColor = HexUtil.color(perTabColors[index]?.selected ?? globalColors.selected) ?? UIColor.systemBlue
         let backgroundColor = resolveColor(from: menuBackgroundTint, style: style)
 
         menuPresenter.present(over: hostView,
@@ -547,6 +630,7 @@ final class NativeTabBarController: UIViewController, UITabBarDelegate, UIGestur
         let route = items[idx].route
         let reselect = (idx == selectedIndex)
         selectedIndex = idx
+        applyTabBarTint(for: idx)
         onSelect?(idx, route, reselect)
     }
 }

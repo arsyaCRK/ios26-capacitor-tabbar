@@ -43,6 +43,7 @@ export interface TabItem {
     contextMenuItems?: ContextMenuItem[];
     titleColors?: TitleColors;
 }
+export type TabBarColorMode = 'custom' | 'native';
 export interface ShowOptions {
     tabs: TabItem[];
     selectedIndex?: number;
@@ -51,6 +52,7 @@ export interface ShowOptions {
         bottomInset?: number;
         sideInset?: number;
     };
+    colorMode?: TabBarColorMode;
     iconColors?: IconColors;
     titleColors?: TitleColors;
     contextMenu?: {

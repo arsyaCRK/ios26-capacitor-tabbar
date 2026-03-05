@@ -5,7 +5,8 @@ export interface ContextMenuItem { id: string; title: string; subtitle?: string;
 export interface IconColors { normal?: HexColor; selected?: HexColor; disabled?: HexColor }
 export interface TitleColors { light?: { normal?: HexColor; selected?: HexColor; disabled?: HexColor }; dark?: { normal?: HexColor; selected?: HexColor; disabled?: HexColor } }
 export interface TabItem { title: string; icon: string; route: string; badge?: string; iconColors?: IconColors; contextMenuItems?: ContextMenuItem[]; titleColors?: TitleColors }
-export interface ShowOptions { tabs: TabItem[]; selectedIndex?: number; layout?: { position?: 'absolute'|'safe-area'; bottomInset?: number; sideInset?: number }; iconColors?: IconColors; titleColors?: TitleColors; contextMenu?: { longPressEnabled?: boolean; defaultItems?: ContextMenuItem[] } }
+export type TabBarColorMode = 'custom' | 'native';
+export interface ShowOptions { tabs: TabItem[]; selectedIndex?: number; layout?: { position?: 'absolute'|'safe-area'; bottomInset?: number; sideInset?: number }; colorMode?: TabBarColorMode; iconColors?: IconColors; titleColors?: TitleColors; contextMenu?: { longPressEnabled?: boolean; defaultItems?: ContextMenuItem[] } }
 export type UserInterfaceStyle = 'light' | 'dark' | 'auto';
 export interface TabBarMetrics {
   width: number;

@@ -130,11 +130,14 @@ export default {
         ],
         selectedIndex: 0,
         layout: { position: 'absolute', bottomInset: 24, sideInset: 16 },
-        iconColors: { normal: '#8E8E93', selected: '#0A84FF' },
-        titleColors: {
-          light: { normal: '#6B7280', selected: '#0A84FF' },
-          dark: { normal: '#9AA0A6', selected: '#0A84FF' }
-        }
+        // Color Mode: здесь два подхода — `native` (системный selected-only цвет) и альтернативный `custom` ниже с полной палитрой.
+        colorMode: 'native',
+        iconColors: { selected: '#0A84FF' },
+        // iconColors: { normal: '#8E8E93', selected: '#0A84FF' },
+        // titleColors: {
+        //   light: { normal: '#6B7280', selected: '#0A84FF' },
+        //   dark: { normal: '#9AA0A6', selected: '#0A84FF' }
+        // }
       })
 
       this.listeners = await Promise.all([
@@ -151,7 +154,6 @@ export default {
 
       const metrics = await TabBar.getTabBarMetrics()
       this.applyMetrics(metrics)
-      this.scrollToSection('#home', 'auto')
     },
     async teardownTabBar () {
       await Promise.all(this.listeners.map(listener => listener.remove()))

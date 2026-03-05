@@ -22,7 +22,7 @@ public class TabBarPlugin: CAPPlugin {
   struct TabItem: Codable { let title: String; let icon: String; let route: String; let badge: String?; let iconColors: IconColors?; let contextMenuItems: [CtxItem]?; let titleColors: TitleColors? }
   struct LayoutCfg: Codable { let position: String?; let bottomInset: CGFloat?; let sideInset: CGFloat? }
   struct CtxCfg: Codable { let longPressEnabled: Bool?; let defaultItems: [CtxItem]? }
-  struct ShowOptions: Codable { let tabs: [TabItem]; let selectedIndex: Int?; let layout: LayoutCfg?; let iconColors: IconColors?; let titleColors: TitleColors?; let contextMenu: CtxCfg? }
+  struct ShowOptions: Codable { let tabs: [TabItem]; let selectedIndex: Int?; let layout: LayoutCfg?; let colorMode: String?; let iconColors: IconColors?; let titleColors: TitleColors?; let contextMenu: CtxCfg? }
 
   private func decode<T: Decodable>(_ obj: Any, as: T.Type) throws -> T {
     let data = try JSONSerialization.data(withJSONObject: obj, options: [])
@@ -84,6 +84,33 @@ public class TabBarPlugin: CAPPlugin {
       lightNormal: t.light?.normal, lightSelected: t.light?.selected, lightDisabled: t.light?.disabled,
       darkNormal:  t.dark?.normal,  darkSelected:  t.dark?.selected,  darkDisabled:  t.dark?.disabled
     )
+  }
+
+  private func hasColorValue(_ value: String?) -> Bool {
+    guard let value else { return false }
+    return !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private func isSelectedOnly(_ colors: IconColors?) -> Bool {
+    guard let colors else { return true }
+    return !hasColorValue(colors.normal) && !hasColorValue(colors.disabled) && hasColorValue(colors.selected)
+  }
+
+  private func resolveColorMode(from opts: ShowOptions) -> NativeTabBarController.ColorMode {
+    if let explicitMode = opts.colorMode?.lowercased() {
+      if explicitMode == "native" { return .native }
+      if explicitMode == "custom" { return .custom }
+    }
+
+    let hasAnyTitleColors = (opts.titleColors != nil) || opts.tabs.contains { $0.titleColors != nil }
+    let hasAnyIconColors = (opts.iconColors != nil) || opts.tabs.contains { $0.iconColors != nil }
+    let hasSelectedColor = hasColorValue(opts.iconColors?.selected) || opts.tabs.contains { hasColorValue($0.iconColors?.selected) }
+    let selectedOnlyEverywhere = isSelectedOnly(opts.iconColors) && opts.tabs.allSatisfy { isSelectedOnly($0.iconColors) }
+
+    if !hasAnyTitleColors && hasAnyIconColors && hasSelectedColor && selectedOnlyEverywhere {
+      return .native
+    }
+    return .custom
   }
 
   
@@ -177,6 +204,8 @@ public class TabBarPlugin: CAPPlugin {
         self.currentBottomInset = bottomInset
 
         let c = self.host ?? NativeTabBarController()
+        let resolvedColorMode = self.resolveColorMode(from: opts)
+        c.setColorMode(resolvedColorMode)
         c.setInterfaceStyle(self.pendingInterfaceStyle)
         c.onSelect = { [weak self] idx, route, reselection in
           guard let self else { return }
@@ -194,7 +223,7 @@ public class TabBarPlugin: CAPPlugin {
         if let gc = opts.iconColors {
           c.setGlobalColors(NativeTabBarController.IconColors(normal: gc.normal, selected: gc.selected, disabled: gc.disabled))
         }
-        if let tc = opts.titleColors, let pal = self.titlePaletteFrom(tc) {
+        if resolvedColorMode == .custom, let tc = opts.titleColors, let pal = self.titlePaletteFrom(tc) {
           c.setGlobalTitlePalette(pal)
         }
         c.setLongPress(enabled: opts.contextMenu?.longPressEnabled ?? true)

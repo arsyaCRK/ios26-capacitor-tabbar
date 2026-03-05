@@ -94,6 +94,7 @@ export default {
         { title: 'Профиль', icon: 'person.crop.circle', route: '/profile' }
       ],
       selectedIndex: 0,
+      colorMode: 'custom',
       layout: { bottomInset: 24, sideInset: 16 },
       iconColors: { normal: '#9AA0A6', selected: '#0A84FF' },
       titleColors: {
@@ -171,6 +172,7 @@ interface ShowOptions {
     bottomInset?: number; // отступ от нижнего края экрана (по умолчанию 24)
     sideInset?: number;   // боковые отступы (по умолчанию 16)
   };
+  colorMode?: 'custom' | 'native'; // явный режим цветов
   iconColors?: IconColors;    // глобальные цвета иконок
   titleColors?: TitleColors;  // глобальные цвета подписей
   contextMenu?: {
@@ -191,6 +193,7 @@ await TabBar.show({
     { title: 'Настройки', icon: 'gearshape', route: '/settings' }
   ],
   selectedIndex: 0,
+  colorMode: 'custom',
   layout: { bottomInset: 20, sideInset: 16 },
   iconColors: { normal: '#8E8E93', selected: '#0A84FF' },
   titleColors: {
@@ -206,6 +209,38 @@ await TabBar.show({
   }
 })
 ```
+
+---
+
+### `colorMode` (режимы цветов)
+
+`colorMode` поддерживает два режима:
+
+- `custom` — применяются `iconColors` (`normal/selected/disabled`) и `titleColors`.
+- `native` — для unselected-иконок и подписей используются системные цвета; из JS учитывается только `selected`.
+
+Если `colorMode` не передан, режим определяется автоматически:
+
+- `native`, если задан только `iconColors.selected` и нигде не задан `titleColors`;
+- иначе `custom`.
+
+Если цветов не задано вообще, используется `custom` (для обратной совместимости).
+
+В `native` режиме `renderingMode` для SF Symbol всегда `.automatic`.
+
+```ts
+// Явный native-режим
+await TabBar.show({
+  colorMode: 'native',
+  tabs: [
+    { title: 'Домой', icon: 'house.fill', route: '/home' },
+    { title: 'Профиль', icon: 'person.crop.circle', route: '/profile' }
+  ],
+  iconColors: { selected: '#0A84FF' }
+})
+```
+
+Рекомендуется всегда задавать `colorMode` явно.
 
 ---
 
@@ -244,6 +279,8 @@ await TabBar.setBadge({ index: 1, value: '' })   # скрыть бейдж
 
 Задаёт **глобальные** цвета иконок.
 
+В `native` режиме учитывается только `selected`.
+
 ```ts
 await TabBar.setIconColors({
   normal: '#9AA0A6',
@@ -255,6 +292,8 @@ await TabBar.setIconColors({
 ### `setTabIconColors({ index, ...colors }): Promise<void>`
 
 Задаёт цвета иконок **для конкретного таба** (перекрывают глобальные).
+
+В `native` режиме учитывается только `selected`.
 
 ```ts
 await TabBar.setTabIconColors({
@@ -270,6 +309,8 @@ await TabBar.setTabIconColors({
 
 Задаёт **глобальные** цвета подписей под иконками (учитывается светлая/тёмная тема, а также состояние selected/normal/disabled).
 
+В `native` режиме вызов игнорируется.
+
 ```ts
 await TabBar.setTitleColors({
   light: { normal: '#6B7280', selected: '#0A84FF', disabled: '#C7C7CC' },
@@ -280,6 +321,8 @@ await TabBar.setTitleColors({
 ### `setTabTitleColors({ index, ...palette }): Promise<void>`
 
 Задаёт цвета подписей **для конкретного таба**.
+
+В `native` режиме вызов игнорируется.
 
 ```ts
 await TabBar.setTabTitleColors({
