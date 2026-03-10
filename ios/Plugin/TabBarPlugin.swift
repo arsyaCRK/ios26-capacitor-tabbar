@@ -12,6 +12,8 @@ public class TabBarPlugin: CAPPlugin {
   private var trailingConstraint: NSLayoutConstraint?
   private var bottomConstraint: NSLayoutConstraint?
   private var usesSafeArea = false
+  private var pendingInterfaceStyle: UIUserInterfaceStyle = .unspecified
+  private var currentBottomInset: CGFloat = 24
 
   struct IconColors: Codable { let normal: String?; let selected: String?; let disabled: String? }
   struct TitleSide: Codable { let normal: String?; let selected: String?; let disabled: String? }
@@ -20,11 +22,60 @@ public class TabBarPlugin: CAPPlugin {
   struct TabItem: Codable { let title: String; let icon: String; let route: String; let badge: String?; let iconColors: IconColors?; let contextMenuItems: [CtxItem]?; let titleColors: TitleColors? }
   struct LayoutCfg: Codable { let position: String?; let bottomInset: CGFloat?; let sideInset: CGFloat? }
   struct CtxCfg: Codable { let longPressEnabled: Bool?; let defaultItems: [CtxItem]? }
-  struct ShowOptions: Codable { let tabs: [TabItem]; let selectedIndex: Int?; let layout: LayoutCfg?; let iconColors: IconColors?; let titleColors: TitleColors?; let contextMenu: CtxCfg? }
+  struct ShowOptions: Codable { let tabs: [TabItem]; let selectedIndex: Int?; let layout: LayoutCfg?; let colorMode: String?; let iconColors: IconColors?; let titleColors: TitleColors?; let contextMenu: CtxCfg? }
 
   private func decode<T: Decodable>(_ obj: Any, as: T.Type) throws -> T {
     let data = try JSONSerialization.data(withJSONObject: obj, options: [])
     return try JSONDecoder().decode(T.self, from: data)
+  }
+
+  private func framePayload(_ rect: CGRect) -> [String: Double] {
+    return [
+      "x": Double(rect.origin.x),
+      "y": Double(rect.origin.y),
+      "width": Double(rect.size.width),
+      "height": Double(rect.size.height)
+    ]
+  }
+
+  private func insetsPayload(_ insets: UIEdgeInsets) -> [String: Double] {
+    return [
+      "top": Double(insets.top),
+      "left": Double(insets.left),
+      "bottom": Double(insets.bottom),
+      "right": Double(insets.right)
+    ]
+  }
+
+  private func metricsPayload(_ metrics: NativeTabBarController.Metrics, selectedIndex: Int? = nil) -> [String: Any] {
+    var payload: [String: Any] = [
+      "width": Double(metrics.tabBarFrame.size.width),
+      "height": Double(metrics.tabBarFrame.size.height),
+      "x": Double(metrics.tabBarFrame.origin.x),
+      "y": Double(metrics.tabBarFrame.origin.y),
+      "tabBarFrame": framePayload(metrics.tabBarFrame),
+      "containerFrame": framePayload(metrics.containerFrame),
+      "containerSafeArea": insetsPayload(metrics.containerSafeAreaInsets),
+      "tabBarSafeArea": insetsPayload(metrics.tabBarSafeAreaInsets),
+      "usesSafeArea": self.usesSafeArea,
+      "configuredBottomInset": Double(self.currentBottomInset)
+    ]
+    if let idx = selectedIndex {
+      payload["selectedIndex"] = idx
+    }
+    if let bridgeSize = self.bridge?.viewController?.view.bounds.size {
+      payload["viewport"] = [
+        "width": Double(bridgeSize.width),
+        "height": Double(bridgeSize.height)
+      ]
+    }
+    return payload
+  }
+
+  private func emitMetricsEvent(_ metrics: NativeTabBarController.Metrics) {
+    let index = self.host?.selectedTabIndex
+    let data = metricsPayload(metrics, selectedIndex: index)
+    self.notifyListeners("tabBarMetrics", data: data)
   }
 
   private func titlePaletteFrom(_ t: TitleColors?) -> NativeTabBarController.TitlePalette? {
@@ -35,7 +86,56 @@ public class TabBarPlugin: CAPPlugin {
     )
   }
 
+  private func hasColorValue(_ value: String?) -> Bool {
+    guard let value else { return false }
+    return !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private func isSelectedOnly(_ colors: IconColors?) -> Bool {
+    guard let colors else { return true }
+    return !hasColorValue(colors.normal) && !hasColorValue(colors.disabled) && hasColorValue(colors.selected)
+  }
+
+  private func resolveColorMode(from opts: ShowOptions) -> NativeTabBarController.ColorMode {
+    if let explicitMode = opts.colorMode?.lowercased() {
+      if explicitMode == "native" { return .native }
+      if explicitMode == "custom" { return .custom }
+    }
+
+    let hasAnyTitleColors = (opts.titleColors != nil) || opts.tabs.contains { $0.titleColors != nil }
+    let hasAnyIconColors = (opts.iconColors != nil) || opts.tabs.contains { $0.iconColors != nil }
+    let hasSelectedColor = hasColorValue(opts.iconColors?.selected) || opts.tabs.contains { hasColorValue($0.iconColors?.selected) }
+    let selectedOnlyEverywhere = isSelectedOnly(opts.iconColors) && opts.tabs.allSatisfy { isSelectedOnly($0.iconColors) }
+
+    if !hasAnyTitleColors && hasAnyIconColors && hasSelectedColor && selectedOnlyEverywhere {
+      return .native
+    }
+    return .custom
+  }
+
   
+  private func computeBottomConstant(for bridgeVC: UIViewController, respectSafeArea: Bool, inset: CGFloat) -> CGFloat {
+    guard respectSafeArea else { return -inset }
+    guard let containerView = bridgeVC.view else { return -inset }
+    containerView.layoutIfNeeded()
+    var safeInset = containerView.safeAreaInsets.bottom
+    if safeInset == 0, let windowInset = containerView.window?.safeAreaInsets.bottom {
+      safeInset = windowInset
+    }
+    if safeInset == 0 {
+      let scenes = UIApplication.shared.connectedScenes
+        .compactMap { $0 as? UIWindowScene }
+      for scene in scenes {
+        for window in scene.windows where window.isKeyWindow {
+          safeInset = window.safeAreaInsets.bottom
+          if safeInset > 0 { break }
+        }
+        if safeInset > 0 { break }
+      }
+    }
+    return safeInset - inset
+  }
+
   private func replaceBottomConstraint(respectSafeArea: Bool, inset: CGFloat) {
     guard let bridgeVC = self.bridge?.viewController, let hostView = self.host?.view else { return }
     // remove old
@@ -44,8 +144,10 @@ public class TabBarPlugin: CAPPlugin {
       hostView.removeConstraint(bc)
     }
     self.usesSafeArea = respectSafeArea
+    self.currentBottomInset = inset
     if respectSafeArea {
-      self.bottomConstraint = hostView.bottomAnchor.constraint(equalTo: bridgeVC.view.safeAreaLayoutGuide.bottomAnchor, constant: -inset)
+      let constant = computeBottomConstant(for: bridgeVC, respectSafeArea: true, inset: inset)
+      self.bottomConstraint = hostView.bottomAnchor.constraint(equalTo: bridgeVC.view.safeAreaLayoutGuide.bottomAnchor, constant: constant)
     } else {
       self.bottomConstraint = hostView.bottomAnchor.constraint(equalTo: bridgeVC.view.bottomAnchor, constant: -inset)
     }
@@ -68,14 +170,16 @@ public class TabBarPlugin: CAPPlugin {
       self.leadingConstraint = c.view.leadingAnchor.constraint(equalTo: bridgeVC.view.leadingAnchor, constant: sideInset)
       self.trailingConstraint = c.view.trailingAnchor.constraint(equalTo: bridgeVC.view.trailingAnchor, constant: -sideInset)
       if self.usesSafeArea {
-      self.bottomConstraint = c.view.bottomAnchor.constraint(equalTo: bridgeVC.view.safeAreaLayoutGuide.bottomAnchor, constant: -bottomInset)
-    } else {
-      self.bottomConstraint = c.view.bottomAnchor.constraint(equalTo: bridgeVC.view.bottomAnchor, constant: -bottomInset)
-    }
+        let constant = computeBottomConstant(for: bridgeVC, respectSafeArea: true, inset: bottomInset)
+        self.bottomConstraint = c.view.bottomAnchor.constraint(equalTo: bridgeVC.view.safeAreaLayoutGuide.bottomAnchor, constant: constant)
+      } else {
+        self.bottomConstraint = c.view.bottomAnchor.constraint(equalTo: bridgeVC.view.bottomAnchor, constant: -bottomInset)
+      }
       NSLayoutConstraint.activate([ self.leadingConstraint!, self.trailingConstraint!, self.bottomConstraint! ])
 
       bridgeVC.view.bringSubviewToFront(c.view)
     }
+    bridgeVC.view.layoutIfNeeded()
   }
 
   @objc public func show(_ call: CAPPluginCall) {
@@ -97,21 +201,29 @@ public class TabBarPlugin: CAPPlugin {
         let sideInset = opts.layout?.sideInset ?? 16
         let position = opts.layout?.position ?? "absolute"
         self.usesSafeArea = (position == "safe-area")
+        self.currentBottomInset = bottomInset
 
         let c = self.host ?? NativeTabBarController()
+        let resolvedColorMode = self.resolveColorMode(from: opts)
+        c.setColorMode(resolvedColorMode)
+        c.setInterfaceStyle(self.pendingInterfaceStyle)
         c.onSelect = { [weak self] idx, route, reselection in
           guard let self else { return }
           self.notifyListeners(reselection ? "tabReselected" : "tabSelected", data: ["index": idx, "route": route])
         }
         c.onLongPress = { [weak self] idx, route in self?.notifyListeners("tabLongPress", data: ["index": idx, "route": route]) }
         c.onContextItem = { [weak self] idx, itemId in self?.notifyListeners("contextMenuItemSelected", data: ["index": idx, "itemId": itemId]) }
+        c.onMetricsChanged = { [weak self] metrics in
+          guard let self else { return }
+          self.emitMetricsEvent(metrics)
+        }
 
         self.attachIfNeeded(c, bottomInset, sideInset)
 
         if let gc = opts.iconColors {
           c.setGlobalColors(NativeTabBarController.IconColors(normal: gc.normal, selected: gc.selected, disabled: gc.disabled))
         }
-        if let tc = opts.titleColors, let pal = self.titlePaletteFrom(tc) {
+        if resolvedColorMode == .custom, let tc = opts.titleColors, let pal = self.titlePaletteFrom(tc) {
           c.setGlobalTitlePalette(pal)
         }
         c.setLongPress(enabled: opts.contextMenu?.longPressEnabled ?? true)
@@ -122,6 +234,9 @@ public class TabBarPlugin: CAPPlugin {
 
         c.configure(tabs: tabs, selected: selected)
         self.host = c
+        DispatchQueue.main.async {
+          c.notifyMetricsChanged(force: true)
+        }
         call.resolve()
       } catch {
         call.reject("Invalid options: \(error)")
@@ -136,6 +251,7 @@ public class TabBarPlugin: CAPPlugin {
       let pos = call.getString("position") ?? (self.usesSafeArea ? "safe-area" : "absolute")
       let respect = (pos == "safe-area")
       self.replaceBottomConstraint(respectSafeArea: respect, inset: inset)
+      DispatchQueue.main.async { [weak self] in self?.host?.notifyMetricsChanged(force: true) }
       call.resolve()
     }
   }
@@ -143,9 +259,48 @@ public class TabBarPlugin: CAPPlugin {
 
   @objc public func setLayout(_ call: CAPPluginCall) {
     DispatchQueue.main.async {
-      if let bi = call.getDouble("bottomInset") { self.bottomConstraint?.constant = CGFloat(-bi) }
-      if let si = call.getDouble("sideInset") { self.leadingConstraint?.constant = CGFloat(si); self.trailingConstraint?.constant = CGFloat(-si) }
+      let previousUsesSafeArea = self.usesSafeArea
+      if let pos = call.getString("position") {
+        self.usesSafeArea = (pos == "safe-area")
+      }
+      if let bi = call.getDouble("bottomInset") {
+        self.currentBottomInset = CGFloat(bi)
+      }
+      if self.usesSafeArea != previousUsesSafeArea {
+        self.replaceBottomConstraint(respectSafeArea: self.usesSafeArea, inset: self.currentBottomInset)
+      } else if call.getDouble("bottomInset") != nil {
+        if self.usesSafeArea, let bridgeVC = self.bridge?.viewController {
+          let constant = self.computeBottomConstant(for: bridgeVC, respectSafeArea: true, inset: self.currentBottomInset)
+          self.bottomConstraint?.constant = constant
+        } else {
+          self.bottomConstraint?.constant = -self.currentBottomInset
+        }
+      }
+      if let si = call.getDouble("sideInset") {
+        self.leadingConstraint?.constant = CGFloat(si)
+        self.trailingConstraint?.constant = CGFloat(-si)
+      }
       self.bridge?.viewController?.view.layoutIfNeeded()
+      DispatchQueue.main.async { [weak self] in self?.host?.notifyMetricsChanged(force: true) }
+      call.resolve()
+    }
+  }
+
+  @objc public func setUserInterfaceStyle(_ call: CAPPluginCall) {
+    DispatchQueue.main.async {
+      let styleValue = (call.getString("style") ?? "auto").lowercased()
+      let resolved: UIUserInterfaceStyle
+      switch styleValue {
+      case "light":
+        resolved = .light
+      case "dark":
+        resolved = .dark
+      default:
+        resolved = .unspecified
+      }
+      self.pendingInterfaceStyle = resolved
+      self.host?.setInterfaceStyle(resolved)
+      self.host?.notifyMetricsChanged(force: true)
       call.resolve()
     }
   }
@@ -237,6 +392,30 @@ public class TabBarPlugin: CAPPlugin {
     }
   }
 
+  @objc(getTabBarMetrics:) public func getTabBarMetrics(_ call: CAPPluginCall) {
+    DispatchQueue.main.async {
+      guard let host = self.host, let metrics = host.currentMetrics() else {
+        call.reject("tab bar not available")
+        return
+      }
+      call.resolve(self.metricsPayload(metrics, selectedIndex: host.selectedTabIndex))
+    }
+  }
+
+  @objc public func lockTabBar(_ call: CAPPluginCall) {
+    DispatchQueue.main.async {
+      self.host?.setTabBarLocked(true)
+      call.resolve()
+    }
+  }
+
+  @objc public func unlockTabBar(_ call: CAPPluginCall) {
+    DispatchQueue.main.async {
+      self.host?.setTabBarLocked(false)
+      call.resolve()
+    }
+  }
+
   @objc public func setContextMenuForIndex(_ call: CAPPluginCall) {
     DispatchQueue.main.async {
       let idx = call.getInt("index") ?? -1
@@ -254,5 +433,39 @@ public class TabBarPlugin: CAPPlugin {
     }
   }
 
-  @objc public func presentContextMenu(_ call: CAPPluginCall) { call.resolve() }
+  @objc public func setContextMenuTitleColors(_ call: CAPPluginCall) {
+    DispatchQueue.main.async {
+      let light = call.getString("light")
+      let dark  = call.getString("dark")
+      self.host?.setContextMenuTitleColors(light: light, dark: dark)
+      call.resolve()
+    }
+  }
+
+  @objc public func setContextMenuSubtitleColors(_ call: CAPPluginCall) {
+    DispatchQueue.main.async {
+      let light = call.getString("light")
+      let dark  = call.getString("dark")
+      self.host?.setContextMenuSubtitleColors(light: light, dark: dark)
+      call.resolve()
+    }
+  }
+
+  @objc public func setContextMenuBackgroundTint(_ call: CAPPluginCall) {
+    DispatchQueue.main.async {
+      let light = call.getString("light")
+      let dark  = call.getString("dark")
+      self.host?.setContextMenuBackgroundTint(light: light, dark: dark)
+      call.resolve()
+    }
+  }
+
+  @objc public func presentContextMenu(_ call: CAPPluginCall) {
+    DispatchQueue.main.async {
+      let idx = call.getInt("index") ?? -1
+      guard idx >= 0 else { call.reject("index required"); return }
+      self.host?.presentMenu(at: idx)
+      call.resolve()
+    }
+  }
 }

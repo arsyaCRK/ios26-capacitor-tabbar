@@ -5,10 +5,14 @@
 - Стеклянный вид (blur + прозрачный фон) как в iOS 26.
 - Отдельные **цвета иконок** (normal/selected/disabled), глобально и для каждого таба.
 - Отдельные **цвета подписей под иконками** (light/dark, normal/selected/disabled), глобально и для каждого таба.
+- Автоподстройку контраста иконок и подписей по яркости контента под таббаром, включая обновление во время скролла.
 - **Контекстное меню** по долгому нажатию (LongPress) на элементы таббара — per‑tab.
 - **Бейджи** на табах.
 - **Runtime‑layout**: можно задать отступ от нижнего края и боковые отступы (позиция абсолютная).
-- События: `tabSelected`, `tabReselected`, `tabLongPress`, `contextMenuItemSelected`.
+- Метрики таббара: метод `getTabBarMetrics` и событие `tabBarMetrics` для синхронизации layout.
+- Принудительный выбор темы таббара: `light`, `dark` или `auto` (следовать системе).
+- События: `tabSelected`, `tabReselected`, `tabLongPress`, `contextMenuItemSelected`, `tabBarMetrics`.
+- **Только iOS/iPadOS**: нативной реализации для Android нет, вызовы на Android приводятся к заглушке.
 
 > В версии **1.1.4+** полностью удалены API анимации иконок (символьные эффекты).
 
@@ -47,6 +51,28 @@ pod 'MmsmartCapacitorIos26Tabbar', :path => '../../node_modules/@mmsmart/capacit
 cd ios && pod install
 ```
 
+### Example app
+
+В репозитории есть готовый iOS-only пример в [example-app](/Users/svdex/Projects/mimi/ios26-capacitor-tabbar/example-app).
+
+Он демонстрирует:
+- одну длинную web-страницу со скроллом и градиентом от белого к чёрному;
+- нативный tabbar поверх WebView;
+- прокрутку к секциям страницы по тапу на нативные табы.
+
+Запуск:
+
+```bash
+cd example-app
+npm install
+npm run build
+npm run cap:sync:ios
+cd ios/App && pod install
+npx cap open ios
+```
+
+Пример использует тот же способ интеграции плагина, который описан в этом README.
+
 ---
 
 ## Быстрый старт (Vue 2 + Capacitor)
@@ -68,6 +94,7 @@ export default {
         { title: 'Профиль', icon: 'person.crop.circle', route: '/profile' }
       ],
       selectedIndex: 0,
+      colorMode: 'custom',
       layout: { bottomInset: 24, sideInset: 16 },
       iconColors: { normal: '#9AA0A6', selected: '#0A84FF' },
       titleColors: {
@@ -145,6 +172,7 @@ interface ShowOptions {
     bottomInset?: number; // отступ от нижнего края экрана (по умолчанию 24)
     sideInset?: number;   // боковые отступы (по умолчанию 16)
   };
+  colorMode?: 'custom' | 'native'; // явный режим цветов
   iconColors?: IconColors;    // глобальные цвета иконок
   titleColors?: TitleColors;  // глобальные цвета подписей
   contextMenu?: {
@@ -165,6 +193,7 @@ await TabBar.show({
     { title: 'Настройки', icon: 'gearshape', route: '/settings' }
   ],
   selectedIndex: 0,
+  colorMode: 'custom',
   layout: { bottomInset: 20, sideInset: 16 },
   iconColors: { normal: '#8E8E93', selected: '#0A84FF' },
   titleColors: {
@@ -180,6 +209,38 @@ await TabBar.show({
   }
 })
 ```
+
+---
+
+### `colorMode` (режимы цветов)
+
+`colorMode` поддерживает два режима:
+
+- `custom` — применяются `iconColors` (`normal/selected/disabled`) и `titleColors`.
+- `native` — для unselected-иконок и подписей используются системные цвета; из JS учитывается только `selected`.
+
+Если `colorMode` не передан, режим определяется автоматически:
+
+- `native`, если задан только `iconColors.selected` и нигде не задан `titleColors`;
+- иначе `custom`.
+
+Если цветов не задано вообще, используется `custom` (для обратной совместимости).
+
+В `native` режиме `renderingMode` для SF Symbol всегда `.automatic`.
+
+```ts
+// Явный native-режим
+await TabBar.show({
+  colorMode: 'native',
+  tabs: [
+    { title: 'Домой', icon: 'house.fill', route: '/home' },
+    { title: 'Профиль', icon: 'person.crop.circle', route: '/profile' }
+  ],
+  iconColors: { selected: '#0A84FF' }
+})
+```
+
+Рекомендуется всегда задавать `colorMode` явно.
 
 ---
 
@@ -218,6 +279,8 @@ await TabBar.setBadge({ index: 1, value: '' })   # скрыть бейдж
 
 Задаёт **глобальные** цвета иконок.
 
+В `native` режиме учитывается только `selected`.
+
 ```ts
 await TabBar.setIconColors({
   normal: '#9AA0A6',
@@ -229,6 +292,8 @@ await TabBar.setIconColors({
 ### `setTabIconColors({ index, ...colors }): Promise<void>`
 
 Задаёт цвета иконок **для конкретного таба** (перекрывают глобальные).
+
+В `native` режиме учитывается только `selected`.
 
 ```ts
 await TabBar.setTabIconColors({
@@ -244,6 +309,8 @@ await TabBar.setTabIconColors({
 
 Задаёт **глобальные** цвета подписей под иконками (учитывается светлая/тёмная тема, а также состояние selected/normal/disabled).
 
+В `native` режиме вызов игнорируется.
+
 ```ts
 await TabBar.setTitleColors({
   light: { normal: '#6B7280', selected: '#0A84FF', disabled: '#C7C7CC' },
@@ -254,6 +321,8 @@ await TabBar.setTitleColors({
 ### `setTabTitleColors({ index, ...palette }): Promise<void>`
 
 Задаёт цвета подписей **для конкретного таба**.
+
+В `native` режиме вызов игнорируется.
 
 ```ts
 await TabBar.setTabTitleColors({
@@ -275,6 +344,37 @@ await TabBar.setLongPressEnabled({ enabled: true })
 
 ---
 
+### `getTabBarMetrics(): Promise<TabBarMetrics>`
+
+Возвращает текущие размеры, позицию и safe-area-инсеты контейнера таббара. Полезно сразу после `show`, чтобы подстроить WebView или свои оверлеи.
+
+```ts
+const metrics = await TabBar.getTabBarMetrics()
+console.log(metrics.width, metrics.height, metrics.containerSafeArea.bottom)
+```
+
+Совместно со событием `tabBarMetrics` даёт возможность реагировать на вращение экрана, изменения safe-area и перестройку layout без ручного пересчёта.
+
+---
+
+### `lockTabBar(): Promise<void>`
+
+Полностью блокирует взаимодействие пользователя с таббаром и его контекстными меню (тапы и долгие нажатия игнорируются до разблокировки).
+
+```ts
+await TabBar.lockTabBar()
+```
+
+### `unlockTabBar(): Promise<void>`
+
+Снимает блокировку, возвращая возможность тапать по вкладкам и вызывать контекстное меню.
+
+```ts
+await TabBar.unlockTabBar()
+```
+
+---
+
 ### `setContextMenuForIndex({ index, items }: { index: number; items: ContextMenuItem[] }): Promise<void>`
 
 Назначает **контекстное меню** только для указанного таба (перекрывает `defaultItems` из `show`).
@@ -286,6 +386,41 @@ await TabBar.setContextMenuForIndex({
     { id: 'refresh', title: 'Обновить', sfSymbol: 'arrow.clockwise' },
     { id: 'remove',  title: 'Удалить',  sfSymbol: 'trash' }
   ]
+})
+```
+
+---
+
+### `setContextMenuTitleColors({ light, dark }: { light?: string; dark?: string }): Promise<void>`
+
+Задаёт цвета текста пунктов контекстного меню для светлой и тёмной темы.
+
+```ts
+await TabBar.setContextMenuTitleColors({
+  light: '#000000',
+  dark: '#FFFFFF'
+})
+```
+
+### `setContextMenuSubtitleColors({ light, dark }: { light?: string; dark?: string }): Promise<void>`
+
+Настраивает цвета подзаголовков (subtitle) пунктов контекстного меню.
+
+```ts
+await TabBar.setContextMenuSubtitleColors({
+  light: '#6B7280',
+  dark: '#B3B9C9'
+})
+```
+
+### `setContextMenuBackgroundTint({ light, dark }: { light?: string; dark?: string }): Promise<void>`
+
+Изменяет базовый тон стеклянного фона контекстного меню. Альфа-канал применяется автоматически.
+
+```ts
+await TabBar.setContextMenuBackgroundTint({
+  light: '#FFFFFF',
+  dark: '#0A84FF'
 })
 ```
 
@@ -305,8 +440,21 @@ await TabBar.presentContextMenu({ index: 0 })
 
 Обновляет отступы во время работы приложения (позиция абсолютная, WebView не сдвигается).
 
+- Для `position: 'safe-area'` значение `bottomInset` интерпретируется как расстояние от нижнего края экрана; необходимый запас для home-индексатора вычитается автоматически.
+
 ```ts
 await TabBar.setLayout({ bottomInset: 28, sideInset: 20 })
+```
+
+---
+
+### `setUserInterfaceStyle({ style }: { style: 'light' | 'dark' | 'auto' }): Promise<void>`
+
+Фиксирует тему таббара и контекстных меню независимо от системного оформления. Значение `auto` (по умолчанию) возвращает поведение «следовать системе».
+
+```ts
+await TabBar.setUserInterfaceStyle({ style: 'dark' }) // жёстко тёмная тема
+await TabBar.setUserInterfaceStyle({ style: 'auto' }) // снова следовать настройкам iOS/iPadOS
 ```
 
 ---
@@ -344,6 +492,18 @@ TabBar.addListener('tabLongPress', ({ index, route }) => {
 })
 ```
 
+> Долгий тап больше не инициирует обычный `tabSelected`. После срабатывания long press таб остаётся на прежней вкладке, пока пользователь явно не тапнет снова.
+
+### `tabBarMetrics`
+
+Присылает актуальные геометрические данные таббара при появлении и при любых изменениях (ориентация, Safe Area, layout).
+
+```ts
+TabBar.addListener('tabBarMetrics', metrics => {
+  console.log('tabbar height', metrics.height, 'bottom inset', metrics.containerSafeArea.bottom)
+})
+```
+
 ### `contextMenuItemSelected`
 
 Выбор пункта контекстного меню.
@@ -373,10 +533,6 @@ TabBar.addListener('contextMenuItemSelected', ({ index, itemId }) => {
 
 ---
 
-## Android
-
-На Android — заглушка: вызовы методов успешно резолвятся, но визуальный таббар не создаётся. Подключайте альтернативный таббар на веб‑уровне для Android.
-
 ---
 
 ## История версий (избранное)
@@ -404,6 +560,8 @@ MIT
 - `position: 'safe-area'` — якорь к `safeAreaLayoutGuide.bottomAnchor` (учитывает «домик» и системные панели).
 
 Если `position` не указан, используется текущий режим (настроенный через `show({ layout.position })` или предыдущий вызов `setBottomOffset`).
+
+- При `position: 'safe-area'` указанный `bottomInset` трактуется как отступ от **реального края экрана**; требуемый запас под home-indicator вычитается автоматически.
 
 ```ts
 // Прижать к safe area на 12pt

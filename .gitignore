@@ -1,0 +1,9 @@
+.vscode/context.md
+/node_modules/
+/.npm-cache/
+/example-app/node_modules/
+/example-app/.npm-cache/
+/example-app/dist/
+/example-app/ios/App/Podfile.lock
+/example-app/ios/App/Pods/
+/example-app/ios/App/build/

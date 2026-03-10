@@ -1,0 +1,73 @@
+name: Codex Sync Tag & Pack
+
+on:
+  push:
+    branches:
+      - codex-sync
+
+permissions:
+  contents: write
+
+jobs:
+  tag-and-pack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Configure git
+        run: |
+          git config user.name "${GITHUB_ACTOR}"
+          git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+
+      - name: Create release tag
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./package.json').version")
+          BASE_TAG="v${VERSION}"
+          TAG_NAME="${BASE_TAG}"
+          if git rev-parse -q --verify "refs/tags/${TAG_NAME}" >/dev/null; then
+            TAG_NAME="${BASE_TAG}-${GITHUB_RUN_NUMBER}"
+          fi
+          git tag -a "${TAG_NAME}" -m "Automated release for ${TAG_NAME}"
+          git push origin "${TAG_NAME}"
+          echo "TAG_NAME=${TAG_NAME}" >> "${GITHUB_ENV}"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build npm package
+        id: npm_pack
+        run: |
+          set -euo pipefail
+          PACKAGE_FILE=$(npm pack | tail -n 1 | tr -d '\r')
+          echo "package_path=${PACKAGE_FILE}" >> "${GITHUB_OUTPUT}"
+          echo "package_name=$(basename "${PACKAGE_FILE}")" >> "${GITHUB_OUTPUT}"
+
+      - name: Create GitHub release and upload package
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ env.TAG_NAME }}
+          PACKAGE_PATH: ${{ steps.npm_pack.outputs.package_path }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          set -euo pipefail
+          NOTES_FILE=$(mktemp)
+          printf '%s\n' "${COMMIT_MESSAGE}" > "${NOTES_FILE}"
+          gh release create "${TAG_NAME}" "${PACKAGE_PATH}" \
+            --title "Release ${TAG_NAME}" \
+            --notes-file "${NOTES_FILE}"
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-package-${{ env.TAG_NAME }}
+          path: "*.tgz"
